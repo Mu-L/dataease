@@ -1,13 +1,14 @@
 import {
   getLabel,
-  getLegend,
   getPadding,
   getTheme,
   getTooltip,
   getXAxis,
-  getYAxis
+  getYAxis,
+  setGradientColor
 } from '@/views/chart/chart/common/common_antv'
 import { Waterfall } from '@antv/g2plot'
+import { formatterItem, valueFormatter } from '@/views/chart/chart/formatter'
 
 export function baseWaterfallOptionAntV(plot, container, chart, action) {
   // theme
@@ -27,12 +28,18 @@ export function baseWaterfallOptionAntV(plot, container, chart, action) {
     delete yAxis.maxLimit
   }
   // data
-  const data = chart.data.datas
+  const data = chart.data.data
+  const [risingColorRgba, fallingColorRgba, totalColorRgba] = theme.styleSheet.paletteQualitative10
+
+  let customAttrCopy = {}
+  if (chart.customAttr) {
+    customAttrCopy = JSON.parse(chart.customAttr)
+  }
   // total
   const total = {
     label: '合计',
     style: {
-      fill: theme.styleSheet.paletteQualitative10[2]
+      fill: setGradientColor(totalColorRgba, customAttrCopy.color.gradient, 270)
     }
   }
   // options
@@ -43,65 +50,43 @@ export function baseWaterfallOptionAntV(plot, container, chart, action) {
     yField: 'value',
     seriesField: 'category',
     appendPadding: getPadding(chart),
+    meta: getMeta(chart),
     label: label,
     tooltip: tooltip,
     legend: {
       items: [
         { name: '增加', marker: {
           style: {
-            fill: theme.styleSheet.paletteQualitative10[0]
+            fill: setGradientColor(risingColorRgba, customAttrCopy.color.gradient, 270)
           }
         }},
         { name: '减少', marker: {
           style: {
-            fill: theme.styleSheet.paletteQualitative10[1]
+            fill: setGradientColor(fallingColorRgba, customAttrCopy.color.gradient, 270)
           }
         }},
         { name: '合计', marker: {
           style: {
-            fill: theme.styleSheet.paletteQualitative10[2]
+            fill: setGradientColor(totalColorRgba, customAttrCopy.color.gradient, 270)
           }
         }}
       ]
     },
     xAxis: xAxis,
     yAxis: yAxis,
-    risingFill: theme.styleSheet.paletteQualitative10[0],
-    fallingFill: theme.styleSheet.paletteQualitative10[1],
+    risingFill: setGradientColor(risingColorRgba, customAttrCopy.color.gradient, 270),
+    fallingFill: setGradientColor(fallingColorRgba, customAttrCopy.color.gradient, 270),
     total: total,
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
-      // {
-      //   type: 'legend-active', cfg: {
-      //     start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
-      //     end: [{ trigger: 'legend-item:mouseleave', action: ['element-active:reset'] }]
-      //   }
-      // },
-      // {
-      //   type: 'legend-filter', cfg: {
-      //     start: [{ trigger: 'legend-item:click', action: ['list-unchecked:toggle', 'data-filter:filter', 'element-active:reset', 'element-highlight:reset'] }]
-      //   }
-      // },
       {
         type: 'tooltip', cfg: {
           start: [{ trigger: 'interval:mousemove', action: 'tooltip:show' }],
           end: [{ trigger: 'interval:mouseleave', action: 'tooltip:hide' }]
         }
       }
-      // {
-      //   type: 'active-region', cfg: {
-      //     start: [{ trigger: 'interval:mousemove', action: 'active-region:show' }],
-      //     end: [{ trigger: 'interval:mouseleave', action: 'active-region:hide' }]
-      //   }
-      // }
     ]
   }
-  // size
+
   let customAttr = {}
   if (chart.customAttr) {
     customAttr = JSON.parse(chart.customAttr)
@@ -125,4 +110,29 @@ export function baseWaterfallOptionAntV(plot, container, chart, action) {
   plot.on('interval:click', action)
 
   return plot
+}
+
+function getMeta(chart) {
+  const meta = {
+    field: {
+      type: 'cat'
+    }
+  }
+  const yaxis = JSON.parse(chart.yaxis)
+  if (yaxis && yaxis.length > 0) {
+    const f = yaxis[0]
+    meta.value = {
+      alias: f.name,
+      formatter: (value) => {
+        let res
+        if (f.formatterCfg) {
+          res = valueFormatter(value, f.formatterCfg)
+        } else {
+          res = valueFormatter(value, formatterItem)
+        }
+        return res
+      }
+    }
+  }
+  return meta
 }

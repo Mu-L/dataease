@@ -3,7 +3,10 @@
     class="demo_main"
   >
     <div class="demo_title">
-      <a target="_blank" :href="details.href">
+      <a
+        target="_blank"
+        :href="details.href"
+      >
         <img
           :src="require('../../../assets/DataEase-' +imgIndex + '.jpg')"
           height="100%"
@@ -61,7 +64,7 @@ export default {
   }
   .demo_content{
     margin: auto;
-    padding-left: 15px;
+    padding-left: 8px;
     height: 100%;
     overflow: hidden;
     .head{
@@ -71,7 +74,7 @@ export default {
     .content{
       height: 50%;
       padding-top: 15px;
-      padding-right: 10px;
+      padding-right: 3px;
       color: var(--TextPrimary, #6D6D6D);
       font-size: 12px;
       overflow-y: auto;
@@ -82,7 +85,7 @@ export default {
         color: var(--TextPrimary, #6D6D6D);
         font-size: 12px;
         position: absolute;
-        bottom: 8px;
+        bottom: 16px;
       }
     }
   }

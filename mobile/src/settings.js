@@ -5,8 +5,10 @@ module.exports = {
     LinkTokenKey: 'LINK-PWD-TOKEN',
     title: 'DataEase',
     WHITE_LIST: [
-        '/api/auth/login',
-        '/api/auth/getPublicKey'
+      '/api/auth/login',
+      '/api/auth/getPublicKey',
+      '/system/ui/info',
+      '/system/ui/image/'
 
     ],
     RECENT_KEY: 'recently',

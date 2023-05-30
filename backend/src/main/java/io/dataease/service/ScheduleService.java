@@ -1,11 +1,11 @@
 package io.dataease.service;
 
-import io.dataease.base.domain.DatasetTableTask;
 import io.dataease.commons.constants.ScheduleType;
 import io.dataease.job.sechedule.ExtractDataJob;
 import io.dataease.job.sechedule.ScheduleManager;
 import io.dataease.job.sechedule.strategy.TaskHandler;
 import io.dataease.job.sechedule.strategy.TaskStrategyFactory;
+import io.dataease.plugins.common.base.domain.DatasetTableTask;
 import io.dataease.plugins.common.entity.GlobalTaskEntity;
 import org.apache.commons.lang3.StringUtils;
 import org.quartz.JobKey;
@@ -66,6 +66,11 @@ public class ScheduleService {
     public void addSchedule(GlobalTaskEntity task) throws Exception {
         TaskHandler taskHandler = TaskStrategyFactory.getInvokeStrategy(task.getTaskType());
         taskHandler.addTask(scheduleManager, task);
+    }
+
+    public void addTempSchedule(GlobalTaskEntity task) throws Exception {
+        TaskHandler taskHandler = TaskStrategyFactory.getInvokeStrategy(task.getTaskType());
+        taskHandler.addTempTask(scheduleManager, task);
     }
 
     public void deleteSchedule(GlobalTaskEntity task) {

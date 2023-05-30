@@ -1,5 +1,7 @@
 import { WidgetService } from '../service/WidgetService'
-
+import {
+  timeSection
+} from '@/utils'
 const leftPanel = {
   icon: 'iconfont icon-yue',
   label: 'deyearmonth.label',
@@ -13,6 +15,7 @@ const dialogPanel = {
       placeholder: 'deyearmonth.placeholder',
       viewIds: [],
       fieldId: '',
+      parameters: [],
       dragItems: [],
       default: {
         isDynamic: false,
@@ -25,6 +28,7 @@ const dialogPanel = {
           { value: 0, text: 'dynamic_month.current' },
           { value: 1, text: 'dynamic_month.last' },
           { value: 2, text: 'dynamic_month.firstOfYear' },
+          { value: 4, text: 'dynamic_month.sameMonthLastYear' },
           { value: 3, text: 'dynamic_time.custom' }
         ],
         custom: {
@@ -39,7 +43,9 @@ const dialogPanel = {
     manualModify: false
   },
   defaultClass: 'time-filter',
-  component: 'de-date'
+  component: 'de-date',
+  miniSizex: 1,
+  miniSizey: 1
 }
 const drawPanel = {
   type: 'custom',
@@ -68,7 +74,6 @@ class TimeMonthServiceImpl extends WidgetService {
   initLeftPanel() {
     const value = JSON.parse(JSON.stringify(leftPanel))
     return value
-    // console.log('this is first initWidget')
   }
 
   initFilterDialog() {
@@ -88,6 +93,9 @@ class TimeMonthServiceImpl extends WidgetService {
   defaultSetting() {
     return dialogPanel.options.attrs.default
   }
+  customValue() {
+    return 3
+  }
   dynamicDateFormNow(element) {
     const now = new Date()
     const nowMonth = now.getMonth()
@@ -105,6 +113,9 @@ class TimeMonthServiceImpl extends WidgetService {
     if (element.options.attrs.default.dkey === 2) {
       return new Date(nowYear, 0, 1).getTime()
     }
+    if (element.options.attrs.default.dkey === 4) {
+      return new Date(nowYear - 1, nowMonth, 1).getTime()
+    }
 
     if (element.options.attrs.default.dkey === 3) {
       const dynamicPrefix = parseInt(element.options.attrs.default.dynamicPrefix)
@@ -116,6 +127,67 @@ class TimeMonthServiceImpl extends WidgetService {
         return new Date(nowYear, nowMonth + dynamicPrefix, 1).getTime()
       }
     }
+  }
+  getParam(element) {
+    let timeArr = []
+    if (element.options.attrs.default && element.options.attrs.default.isDynamic) {
+      let value = this.dynamicDateFormNow(element)
+      value = this.formatFilterValue(value)
+      timeArr = this.formatValues(value, element)
+    } else {
+      let value = this.fillValueDerfault(element)
+      value = this.formatFilterValue(value)
+      timeArr = this.formatValues(value, element)
+    }
+    const param = {
+      component: element,
+      value: timeArr,
+      operator: 'between'
+    }
+    return param
+  }
+  fillValueDerfault(element) {
+    const defaultV = element.options.value === null ? '' : element.options.value.toString()
+    if (element.options.attrs.type === 'daterange') {
+      if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV ===
+        '[object Object]') {
+        return []
+      }
+      return defaultV.split(',').map(item => parseFloat(item))
+    } else {
+      if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV ===
+        '[object Object]') {
+        return null
+      }
+      return parseFloat(defaultV.split(',')[0])
+    }
+  }
+  formatFilterValue(values) {
+    if (values === null) return []
+    if (Array.isArray(values)) return values
+    return [values]
+  }
+  formatValues(values, element) {
+    if (!values || values.length === 0) {
+      return []
+    }
+    if (element.options.attrs.type === 'daterange') {
+      if (values.length !== 2) {
+        return null
+      }
+      let start = values[0]
+      let end = values[1]
+      start = timeSection(start, 'date')[0]
+      end = timeSection(end, 'date')[1]
+      const results = [start, end]
+      return results
+    } else {
+      const value = values[0]
+      return timeSection(parseFloat(value), element.options.attrs.type)
+    }
+  }
+  isParamWidget() {
+    return true
   }
 }
 const timeMonthServiceImpl = new TimeMonthServiceImpl()

@@ -1,6 +1,6 @@
 package io.dataease.controller.request.panel;
 
-import io.dataease.base.domain.PanelTemplateWithBLOBs;
+import io.dataease.plugins.common.base.domain.PanelTemplateWithBLOBs;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
@@ -13,10 +13,12 @@ import lombok.Data;
 public class PanelTemplateRequest extends PanelTemplateWithBLOBs {
     @ApiModelProperty("排序")
     private String sort;
-    @ApiModelProperty("详息")
+    @ApiModelProperty("详细信息")
     private String withBlobs="Y";
     @ApiModelProperty("操作类型")
     private String optType;
+    @ApiModelProperty("静态文件")
+    private String staticResource;
     @ApiModelProperty("是否及联")
     private Boolean withChildren = false;
 

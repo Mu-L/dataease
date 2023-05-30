@@ -1,5 +1,6 @@
 import { getLabel, getLegend, getPadding, getTheme, getTooltip } from '@/views/chart/chart/common/common_antv'
 import { Funnel } from '@antv/g2plot'
+import { antVCustomColor } from '@/views/chart/chart/util'
 
 export function baseFunnelOptionAntV(plot, container, chart, action) {
   // theme
@@ -10,7 +11,7 @@ export function baseFunnelOptionAntV(plot, container, chart, action) {
   // style
   const legend = getLegend(chart)
   // data
-  const data = chart.data.datas
+  const data = chart.data.data
   // options
   const options = {
     theme: theme,
@@ -23,12 +24,6 @@ export function baseFunnelOptionAntV(plot, container, chart, action) {
     legend: legend,
     conversionTag: false,
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
       {
         type: 'legend-active', cfg: {
           start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -46,22 +41,10 @@ export function baseFunnelOptionAntV(plot, container, chart, action) {
           end: [{ trigger: 'interval:mouseleave', action: 'tooltip:hide' }]
         }
       }
-      // {
-      //   type: 'active-region', cfg: {
-      //     start: [{ trigger: 'interval:mousemove', action: 'active-region:show' }],
-      //     end: [{ trigger: 'interval:mouseleave', action: 'active-region:hide' }]
-      //   }
-      // }
     ]
   }
-  // size
-  let customAttr = {}
-  if (chart.customAttr) {
-    customAttr = JSON.parse(chart.customAttr)
-    if (customAttr.size) {
-      const s = JSON.parse(JSON.stringify(customAttr.size))
-    }
-  }
+  // custom color
+  options.color = antVCustomColor(chart)
 
   // 开始渲染
   if (plot) {

@@ -7,88 +7,69 @@
       :style="trackBarStyleTime"
       @trackClick="trackClick"
     />
-    <div :id="chartId" style="width: 100%;height: 100%;overflow: hidden;" :style="{ borderRadius: borderRadius}" />
-    <div v-if="chart.type === 'map'" class="map-zoom-box">
-      <div style="margin-bottom: 0.5em;">
-        <el-button size="mini" icon="el-icon-plus" circle @click="roamMap(true)" />
-      </div>
+    <div
+      :id="chartId"
+      style="width: 100%;height: 100%;overflow: hidden;"
+      :style="{ borderRadius: borderRadius}"
+    />
 
-      <div style="margin-bottom: 0.5em;">
-        <el-button size="mini" icon="el-icon-refresh" circle @click="resetZoom()" />
-      </div>
-
-      <div>
-        <el-button size="mini" icon="el-icon-minus" circle @click="roamMap(false)" />
-      </div>
-
-    </div>
+    <map-controller
+      v-if="chart.type === 'map' && showSuspension"
+      :chart="chart"
+      :button-text-color="buttonTextColor"
+      @roam-map="roamMap"
+      @reset-zoom="resetZoom"
+    />
+    <div
+      :class="loading ? 'symbol-map-loading' : 'symbol-map-loaded'"
+    />
   </div>
 </template>
 
 <script>
 import {
   BASE_BAR,
-  BASE_LINE,
-  HORIZONTAL_BAR,
-  BASE_PIE,
   BASE_FUNNEL,
-  BASE_RADAR,
   BASE_GAUGE,
+  BASE_LINE,
   BASE_MAP,
+  BASE_MIX,
+  BASE_PIE,
+  BASE_RADAR,
   BASE_SCATTER,
   BASE_TREEMAP,
-  BASE_MIX
+  HORIZONTAL_BAR
 } from '../chart/chart'
-import {
-  baseBarOption,
-  stackBarOption,
-  horizontalBarOption,
-  horizontalStackBarOption
-} from '../chart/bar/bar'
-import {
-  baseLineOption,
-  stackLineOption
-} from '../chart/line/line'
-import {
-  basePieOption,
-  rosePieOption
-} from '../chart/pie/pie'
-import {
-  baseMapOption
-} from '../chart/map/map'
-import {
-  baseFunnelOption
-} from '../chart/funnel/funnel'
-import {
-  baseRadarOption
-} from '../chart/radar/radar'
-import {
-  baseGaugeOption
-} from '../chart/gauge/gauge'
-import {
-  baseScatterOption
-} from '../chart/scatter/scatter'
-import {
-  baseTreemapOption
-} from '../chart/treemap/treemap'
-import {
-  baseMixOption
-} from '@/views/chart/chart/mix/mix'
-// import eventBus from '@/components/canvas/utils/eventBus'
-import {
-  uuid
-} from 'vue-uuid'
-import {
-  geoJson
-} from '@/api/map/map'
-import ViewTrackBar from '@/components/canvas/components/Editor/ViewTrackBar'
+import { baseBarOption, horizontalBarOption, horizontalStackBarOption, stackBarOption } from '../chart/bar/bar'
+import { baseLineOption, stackLineOption } from '../chart/line/line'
+import { basePieOption, rosePieOption } from '../chart/pie/pie'
+import { baseMapOption } from '../chart/map/map'
+import { baseFunnelOption } from '../chart/funnel/funnel'
+import { baseRadarOption } from '../chart/radar/radar'
+import { baseGaugeOption } from '../chart/gauge/gauge'
+import { baseScatterOption } from '../chart/scatter/scatter'
+import { baseTreemapOption } from '../chart/treemap/treemap'
+import { baseMixOption } from '@/views/chart/chart/mix/mix'
+import { uuid } from 'vue-uuid'
+import { geoJson } from '@/api/map/map'
+import ViewTrackBar from '@/components/canvas/components/editor/ViewTrackBar'
+import { reverseColor } from '../chart/common/common'
+import MapController from './map/MapController.vue'
+import { mapState } from 'vuex'
+import bus from '@/utils/bus'
 
 export default {
   name: 'ChartComponent',
   components: {
-    ViewTrackBar
+    ViewTrackBar,
+    MapController
   },
   props: {
+    active: {
+      type: Boolean,
+      required: false,
+      default: false
+    },
     chart: {
       type: Object,
       required: true
@@ -115,6 +96,16 @@ export default {
     terminalType: {
       type: String,
       default: 'pc'
+    },
+    scale: {
+      type: Number,
+      required: false,
+      default: 1
+    },
+    themeStyle: {
+      type: Object,
+      required: false,
+      default: null
     }
   },
   data() {
@@ -128,19 +119,48 @@ export default {
         top: '0px'
       },
       pointParam: null,
-
       dynamicAreaCode: null,
       borderRadius: '0px',
-      mapCenter: null
+      mapCenter: null,
+      linkageActiveParam: null,
+      buttonTextColor: null,
+      loading: true,
+      showSuspension: true,
+      currentSeriesId: null,
+      haveScrollType: [
+        'treemap',
+        'map',
+        'chart-mix',
+        'bar',
+        'bar-stack',
+        'bar-horizontal',
+        'bar-stack-horizontal',
+        'line',
+        'line-stack',
+        'scatter'
+      ]
     }
   },
 
   computed: {
     trackBarStyleTime() {
       return this.trackBarStyle
-    }
+    },
+    ...mapState([
+      'canvasStyleData'
+    ])
   },
   watch: {
+    active: {
+      handler(newVal, oldVla) {
+        this.scrollStatusChange(newVal)
+      }
+    },
+    currentSeriesId(value, old) {
+      if (value !== old) {
+        this.preDraw()
+      }
+    },
     chart: {
       handler(newVal, oldVla) {
         this.preDraw()
@@ -149,16 +169,103 @@ export default {
     },
     resize() {
       this.drawEcharts()
+    },
+    'themeStyle.color'(value, old) {
+      if (value !== old) {
+        this.preDraw()
+      }
+    },
+    'themeStyle.backgroundColorSelect'(value, old) {
+      if (value !== old) {
+        this.preDraw()
+      }
     }
   },
   mounted() {
+    bus.$on('change-series-id', this.changeSeriesId)
     this.preDraw()
   },
-  destroyed() {
+  beforeDestroy() {
+    bus.$off('change-series-id', this.changeSeriesId)
+    window.removeEventListener('resize', this.myChart.resize)
     this.myChart.dispose()
+    this.myChart = null
+  },
+  created() {
+    this.loadThemeStyle()
   },
   methods: {
+    scrollStatusChange() {
+      if (this.haveScrollType.includes(this.chart.type)) {
+        const opt = this.myChart.getOption()
+        this.adaptorOpt(opt)
+        if (this.chart.type === 'treemap') {
+          this.myChart.dispose()
+          this.myChart = null
+          this.preDraw()
+        } else {
+          this.myChart.setOption(opt)
+        }
+      }
+    },
+    adaptorOpt(opt) {
+      const disabledStatus = !this.active
+      if (opt.dataZoom) {
+        opt.dataZoom.forEach(function(s) {
+          if (s.type === 'inside') {
+            s.disabled = disabledStatus
+          }
+        })
+      }
+      if (opt.geo) {
+        if (opt.geo instanceof Array) {
+          opt.geo[0].roam = this.active
+        } else {
+          opt.geo.roam = this.active
+        }
+      }
+      if (this.chart.type === 'treemap' && opt.series) {
+        opt.series[0].roam = this.active
+      }
+    },
+    changeSeriesId(param) {
+      const { id, seriesId } = param
+      if (id !== this.chart.id) {
+        return
+      }
+      this.currentSeriesId = seriesId
+    },
+    reDrawView() {
+      if (this.linkageActiveParam) {
+        this.myChart.dispatchAction({
+          type: 'unselect',
+          seriesIndex: this.linkageActiveParam.seriesIndex,
+          name: this.linkageActiveParam.name
+        })
+        this.myChart.dispatchAction({
+          type: 'downplay',
+          seriesIndex: this.linkageActiveParam.seriesIndex,
+          name: this.linkageActiveParam.name
+        })
+      }
+      this.linkageActiveParam = null
+    },
+    linkageActive() {
+      if (this.linkageActiveParam) {
+        this.myChart.dispatchAction({
+          type: 'select',
+          seriesIndex: this.linkageActiveParam.seriesIndex,
+          name: this.linkageActiveParam.name
+        })
+        this.myChart.dispatchAction({
+          type: 'highlight',
+          seriesIndex: this.linkageActiveParam.seriesIndex,
+          name: this.linkageActiveParam.name
+        })
+      }
+    },
     preDraw() {
+      this.loading = true
       // 基于准备好的dom，初始化echarts实例
       // 渲染echart等待dom加载完毕,渲染之前先尝试销毁具有相同id的echart 放置多次切换仪表板有重复id情况
       const that = this
@@ -175,6 +282,9 @@ export default {
         this.myChart.off('click')
         this.myChart.on('click', function(param) {
           that.pointParam = param
+          if (that.linkageActiveParam) {
+            that.reDrawView()
+          }
           if (that.trackMenu.length < 2) { // 只有一个事件直接调用
             that.trackClick(that.trackMenu[0])
           } else { // 视图关联多个事件
@@ -183,9 +293,39 @@ export default {
             that.$refs.viewTrack.trackButtonClick()
           }
         })
+        this.myChart.off('finished')
+        this.myChart.on('finished', () => {
+          this.loading = false
+        })
       })
     },
-    drawEcharts() {
+    loadThemeStyle() {
+      let themeStyle = null
+      if (this.themeStyle) {
+        themeStyle = JSON.parse(JSON.stringify(this.themeStyle))
+
+        if (themeStyle && themeStyle.backgroundColorSelect) {
+          const panelColor = themeStyle.color
+          if (panelColor !== '#FFFFFF') {
+            const reverseValue = reverseColor(panelColor)
+            this.buttonTextColor = reverseValue
+          } else {
+            this.buttonTextColor = null
+          }
+        } else if (this.canvasStyleData.openCommonStyle && this.canvasStyleData.panel.backgroundType === 'color') {
+          const panelColor = this.canvasStyleData.panel.color
+          if (panelColor !== '#FFFFFF') {
+            const reverseValue = reverseColor(panelColor)
+            this.buttonTextColor = reverseValue
+          } else {
+            this.buttonTextColor = null
+          }
+        } else {
+          this.buttonTextColor = null
+        }
+      }
+    },
+    drawEcharts(activeParam) {
       const chart = this.chart
       let chart_option = {}
       // type
@@ -201,16 +341,16 @@ export default {
         chart_option = baseLineOption(JSON.parse(JSON.stringify(BASE_LINE)), chart)
       } else if (chart.type === 'line-stack') {
         chart_option = stackLineOption(JSON.parse(JSON.stringify(BASE_LINE)), chart)
-      } else if (chart.type === 'pie') {
+      } else if (chart.type === 'pie' || chart.type === 'pie-donut') {
         chart_option = basePieOption(JSON.parse(JSON.stringify(BASE_PIE)), chart)
-      } else if (chart.type === 'pie-rose') {
+      } else if (chart.type === 'pie-rose' || chart.type === 'pie-donut-rose') {
         chart_option = rosePieOption(JSON.parse(JSON.stringify(BASE_PIE)), chart)
       } else if (chart.type === 'funnel') {
         chart_option = baseFunnelOption(JSON.parse(JSON.stringify(BASE_FUNNEL)), chart)
       } else if (chart.type === 'radar') {
         chart_option = baseRadarOption(JSON.parse(JSON.stringify(BASE_RADAR)), chart)
       } else if (chart.type === 'gauge') {
-        chart_option = baseGaugeOption(JSON.parse(JSON.stringify(BASE_GAUGE)), chart)
+        chart_option = baseGaugeOption(JSON.parse(JSON.stringify(BASE_GAUGE)), chart, this.terminalType === 'pc' ? this.scale : '0.7')
       } else if (chart.type === 'scatter') {
         chart_option = baseScatterOption(JSON.parse(JSON.stringify(BASE_SCATTER)), chart, this.terminalType)
       } else if (chart.type === 'treemap') {
@@ -218,21 +358,22 @@ export default {
       } else if (chart.type === 'chart-mix') {
         chart_option = baseMixOption(JSON.parse(JSON.stringify(BASE_MIX)), chart)
       }
-      // console.log(JSON.stringify(chart_option))
       if (this.myChart && this.searchCount > 0) {
         chart_option.animation = false
       }
-
       if (chart.type === 'map') {
         const customAttr = JSON.parse(chart.customAttr)
+        if (customAttr.suspension) {
+          this.showSuspension = customAttr.suspension.show
+        }
         if (!customAttr.areaCode) {
           this.myChart.clear()
           return
         }
-        const cCode = this.dynamicAreaCode || customAttr.areaCode
+        const cCode = this.chart.DetailAreaCode || this.dynamicAreaCode || customAttr.areaCode
         if (this.$store.getters.geoMap[cCode]) {
           const json = this.$store.getters.geoMap[cCode]
-          this.initMapChart(json, chart)
+          this.initMapChart(json, chart, cCode)
           return
         }
 
@@ -241,41 +382,64 @@ export default {
             key: cCode,
             value: res
           }).then(() => {
-            this.initMapChart(res, chart)
+            this.initMapChart(res, chart, cCode)
           })
         })
         return
       }
+      if (chart_option.legend) {
+        if (this.canvasStyleData.panel.themeColor === 'dark') {
+          chart_option.legend['pageIconColor'] = '#ffffff'
+          chart_option.legend['pageIconInactiveColor'] = '#8c8c8c'
+        } else {
+          chart_option.legend['pageIconColor'] = '#000000'
+          chart_option.legend['pageIconInactiveColor'] = '#8c8c8c'
+        }
+      }
       this.myEcharts(chart_option)
+      this.$nextTick(() => (this.linkageActive()))
     },
     registerDynamicMap(areaCode) {
       this.dynamicAreaCode = areaCode
-      //   if (this.$store.getters.geoMap[areaCode]) {
-      //     const json = this.$store.getters.geoMap[areaCode]
-      //     this.myChart.dispose()
-      //     this.myChart = this.$echarts.getInstanceByDom(document.getElementById(this.chartId))
-      //     this.$echarts.registerMap('MAP', json)
-      //     return
-      //   }
-      //   geoJson(areaCode).then(res => {
-      //     this.$store.dispatch('map/setGeo', {
-      //       key: areaCode,
-      //       value: res
-      //     }).then(() => {
-      //       this.myChart.dispose()
-      //       this.myChart = this.$echarts.getInstanceByDom(document.getElementById(this.chartId))
-      //       this.$echarts.registerMap('MAP', res)
-      //     })
-      //   }).catch(() => {
-      //     this.downOrUp = true
-      //   })
     },
-
-    initMapChart(geoJson, chart) {
-      this.$echarts.registerMap('MAP', geoJson)
-      // this.$echarts.getMap('MAP') || this.$echarts.registerMap('MAP', geoJson)
+    formatGeoJson(geoGson) {
+      geoGson.features.forEach(feature => {
+        Object.keys(feature.properties).forEach(property => {
+          feature.properties[property.toLocaleLowerCase()] = feature.properties[property]
+        })
+      })
+    },
+    initMapChart(geoJson, chart, curAreaCode) {
+      this.formatGeoJson(geoJson)
+      const mapId = 'MAP' + this.chartId
+      this.$echarts.registerMap(mapId, geoJson)
       const base_json = JSON.parse(JSON.stringify(BASE_MAP))
-      const chart_option = baseMapOption(base_json, chart)
+      base_json.geo.map = mapId
+      let themeStyle = null
+      if (this.themeStyle) {
+        themeStyle = JSON.parse(JSON.stringify(this.themeStyle))
+
+        if (themeStyle && themeStyle.backgroundColorSelect) {
+          const panelColor = themeStyle.color
+          if (panelColor !== '#FFFFFF') {
+            const reverseValue = reverseColor(panelColor)
+            this.buttonTextColor = reverseValue
+          } else {
+            this.buttonTextColor = null
+          }
+        } else if (this.canvasStyleData.openCommonStyle && this.canvasStyleData.panel.backgroundType === 'color') {
+          const panelColor = this.canvasStyleData.panel.color
+          if (panelColor !== '#FFFFFF') {
+            const reverseValue = reverseColor(panelColor)
+            this.buttonTextColor = reverseValue
+          } else {
+            this.buttonTextColor = null
+          }
+        } else {
+          this.buttonTextColor = null
+        }
+      }
+      const chart_option = baseMapOption(base_json, geoJson, chart, this.buttonTextColor, curAreaCode, this.currentSeriesId)
       this.myEcharts(chart_option)
       const opt = this.myChart.getOption()
       if (opt && opt.series) {
@@ -284,13 +448,12 @@ export default {
       }
     },
     myEcharts(option) {
+      this.adaptorOpt(option)
       // 指定图表的配置项和数据
       const chart = this.myChart
       this.setBackGroundBorder()
       setTimeout(chart.setOption(option, true), 500)
-      window.onresize = function() {
-        chart.resize()
-      }
+      window.removeEventListener('resize', chart.resize)
     },
     setBackGroundBorder() {
       if (this.chart.customStyle) {
@@ -321,23 +484,33 @@ export default {
         }
         return
       }
+      const quotaList = this.pointParam.data.quotaList
+      quotaList[0]['value'] = this.pointParam.data.value
       const linkageParam = {
         option: 'linkage',
+        name: this.pointParam.data.name,
         viewId: this.chart.id,
         dimensionList: this.pointParam.data.dimensionList,
-        quotaList: this.pointParam.data.quotaList
+        quotaList: quotaList
       }
       const jumpParam = {
         option: 'jump',
+        name: this.pointParam.data.name,
         viewId: this.chart.id,
         dimensionList: this.pointParam.data.dimensionList,
-        quotaList: this.pointParam.data.quotaList
+        quotaList: quotaList
       }
+      jumpParam.quotaList[0]['value'] = this.pointParam.data.value
       switch (trackAction) {
         case 'drill':
           this.$emit('onChartClick', this.pointParam)
           break
         case 'linkage':
+          this.linkageActiveParam = {
+            seriesIndex: param.seriesIndex,
+            name: param.name
+          }
+          this.linkageActive()
           this.$store.commit('addViewTrackFilter', linkageParam)
           break
         case 'jump':
@@ -349,20 +522,20 @@ export default {
     },
     roamMap(flag) {
       let targetZoom = 1
-      const zoom = this.myChart.getOption().series[0].zoom
+      const zoom = this.myChart.getOption().geo[0].zoom
       if (flag) {
         targetZoom = zoom * 1.2
       } else {
         targetZoom = zoom / 1.2
       }
       const options = JSON.parse(JSON.stringify(this.myChart.getOption()))
-      options.series[0].zoom = targetZoom
+      options.geo[0].zoom = targetZoom
       this.myChart.setOption(options)
     },
     resetZoom() {
       const options = JSON.parse(JSON.stringify(this.myChart.getOption()))
-      options.series[0].zoom = 1
-      options.series[0].center = this.mapCenter
+      options.geo[0].zoom = 1
+      options.geo[0].center = this.mapCenter
       this.myChart.setOption(options)
     }
   }
@@ -371,15 +544,15 @@ export default {
 </script>
 
 <style scoped>
-  .map-zoom-box {
-    position: absolute;
-    z-index: 999;
-    left: 2%;
-    bottom: 30px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-    text-align: center;
-    padding: 2px;
-    border-radius: 5px
-  }
+.map-zoom-box {
+  position: absolute;
+  z-index: 0;
+  left: 2%;
+  bottom: 30px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  text-align: center;
+  padding: 2px;
+  border-radius: 5px
+}
 
 </style>

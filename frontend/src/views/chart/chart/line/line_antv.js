@@ -1,5 +1,18 @@
 import { Line, Area } from '@antv/g2plot'
-import { getTheme, getLabel, getTooltip, getLegend, getXAxis, getYAxis, getPadding } from '@/views/chart/chart/common/common_antv'
+import {
+  getTheme,
+  getLabel,
+  getTooltip,
+  getLegend,
+  getXAxis,
+  getYAxis,
+  getPadding,
+  getSlider,
+  getAnalyse,
+  setGradientColor
+} from '@/views/chart/chart/common/common_antv'
+import { antVCustomColor, handleEmptyDataStrategy } from '@/views/chart/chart/util'
+import _ from 'lodash'
 
 export function baseLineOptionAntV(plot, container, chart, action) {
   // theme
@@ -12,7 +25,10 @@ export function baseLineOptionAntV(plot, container, chart, action) {
   const xAxis = getXAxis(chart)
   const yAxis = getYAxis(chart)
   // data
-  const data = chart.data.datas
+  const data = _.cloneDeep(chart.data.data)
+  // config
+  const slider = getSlider(chart)
+  const analyse = getAnalyse(chart)
   // options
   const options = {
     point: {},
@@ -27,13 +43,9 @@ export function baseLineOptionAntV(plot, container, chart, action) {
     legend: legend,
     xAxis: xAxis,
     yAxis: yAxis,
+    slider: slider,
+    annotations: analyse,
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
       {
         type: 'legend-active', cfg: {
           start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -75,7 +87,16 @@ export function baseLineOptionAntV(plot, container, chart, action) {
       }
     }
   }
-
+  // custom color
+  options.color = antVCustomColor(chart)
+  // 处理空值
+  if (chart.senior) {
+    let emptyDataStrategy = JSON.parse(chart.senior)?.functionCfg?.emptyDataStrategy
+    if (!emptyDataStrategy) {
+      emptyDataStrategy = 'breakLine'
+    }
+    handleEmptyDataStrategy(emptyDataStrategy, chart, data, options)
+  }
   // 开始渲染
   if (plot) {
     plot.destroy()
@@ -88,7 +109,7 @@ export function baseLineOptionAntV(plot, container, chart, action) {
   return plot
 }
 
-export function baseAreaOptionAntV(plot, container, chart, action) {
+export function baseAreaOptionAntV(plot, container, chart, action, isStack) {
   // theme
   const theme = getTheme(chart)
   // attr
@@ -99,7 +120,10 @@ export function baseAreaOptionAntV(plot, container, chart, action) {
   const xAxis = getXAxis(chart)
   const yAxis = getYAxis(chart)
   // data
-  const data = chart.data.datas
+  const data = _.cloneDeep(chart.data.data)
+  // config
+  const slider = getSlider(chart)
+  const analyse = getAnalyse(chart)
   // options
   const options = {
     point: {},
@@ -114,13 +138,10 @@ export function baseAreaOptionAntV(plot, container, chart, action) {
     legend: legend,
     xAxis: xAxis,
     yAxis: yAxis,
+    slider: slider,
+    annotations: analyse,
+    isStack: isStack,
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
       {
         type: 'legend-active', cfg: {
           start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -157,10 +178,33 @@ export function baseAreaOptionAntV(plot, container, chart, action) {
         size: parseInt(s.lineSymbolSize),
         shape: s.lineSymbol
       }
-      options.lineStyle = {
-        lineWidth: parseInt(s.lineWidth)
+      options.line = {
+        style: {
+          lineWidth: parseInt(s.lineWidth)
+        }
       }
     }
+  }
+  // custom color
+  options.color = antVCustomColor(chart)
+  const areaColors = [...options.color, ...options.color]
+  if (customAttr.color.gradient) {
+    options.areaStyle = () => {
+      const ele = areaColors.shift()
+      if (ele) {
+        return {
+          fill: setGradientColor(ele, customAttr.color.gradient, 270)
+        }
+      }
+    }
+  }
+  // 处理空值
+  if (chart.senior) {
+    let emptyDataStrategy = JSON.parse(chart.senior)?.functionCfg?.emptyDataStrategy
+    if (!emptyDataStrategy) {
+      emptyDataStrategy = 'breakLine'
+    }
+    handleEmptyDataStrategy(emptyDataStrategy, chart, data, options)
   }
 
   // 开始渲染

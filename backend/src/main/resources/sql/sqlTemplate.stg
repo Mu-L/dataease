@@ -1,4 +1,4 @@
-querySql(limitFiled, groups, aggregators, filters, orders, table, notUseAs)
+querySql(limitFiled, groups, aggregators, filters, orders, table, notUseAs, useAliasForGroup)
 ::=<<
 SELECT
 <if(limitFiled)>
@@ -14,10 +14,7 @@ SELECT
     <groups:{group|<if(group)><group.fieldName> AS <group.fieldAlias><endif>}; separator=",\n">
 <endif>
     <if(groups && aggregators)>,<endif>
-<if(aggregators && notUseAs)>
-    <aggregators:{agg|<if(agg)><agg.fieldName> <endif>}; separator=",\n">
-<endif>
-<if(aggregators && !notUseAs)>
+<if(aggregators)>
     <aggregators:{agg|<if(agg)><agg.fieldName> AS <agg.fieldAlias><endif>}; separator=",\n">
 <endif>
 FROM
@@ -26,9 +23,13 @@ FROM
 WHERE
     <filters:{filter|<if(filter)><filter><endif>}; separator="\nAND ">
 <endif>
-<if(groups)>
+<if(groups && !useAliasForGroup)>
 GROUP BY
     <groups:{group|<if(group)><group.fieldName><endif>}; separator=",\n">
+<endif>
+<if(groups && useAliasForGroup)>
+GROUP BY
+    <groups:{group|<if(group)><group.fieldAlias><endif>}; separator=",\n">
 <endif>
 <if(orders)>
 ORDER BY
@@ -37,7 +38,7 @@ ORDER BY
 >>
 
 
-previewSql(limitFiled, groups, aggregators, filters, orders, table, isGroup, notUseAs)
+previewSql(limitFiled, groups, aggregators, filters, orders, table, isGroup, notUseAs, useAliasForGroup)
 ::=<<
 SELECT
 <if(limitFiled)>
@@ -53,10 +54,7 @@ SELECT
     <groups:{group|<if(group)><group.fieldName> AS <group.fieldAlias><endif>}; separator=",\n">
 <endif>
     <if(groups && aggregators)>,<endif>
-<if(aggregators && notUseAs)>
-    <aggregators:{agg|<if(agg)><agg.fieldName> <endif>}; separator=",\n">
-<endif>
-<if(aggregators && !notUseAs)>
+<if(aggregators)>
     <aggregators:{agg|<if(agg)><agg.fieldName> AS <agg.fieldAlias><endif>}; separator=",\n">
 <endif>
 FROM
@@ -65,9 +63,13 @@ FROM
 WHERE
     <filters:{filter|<if(filter)><filter><endif>}; separator="\nAND ">
 <endif>
-<if(isGroup && groups)>
+<if(isGroup && groups && !useAliasForGroup)>
 GROUP BY
     <groups:{group|<if(group)><group.fieldName><endif>}; separator=",\n">
+<endif>
+<if(isGroup && groups && useAliasForGroup)>
+GROUP BY
+    <groups:{group|<if(group)><group.fieldAlias><endif>}; separator=",\n">
 <endif>
 <if(orders)>
 ORDER BY

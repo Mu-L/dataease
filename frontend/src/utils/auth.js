@@ -1,11 +1,13 @@
 import Cookies from 'js-cookie'
 import Config from '@/settings'
-
+import store from '@/store'
 const TokenKey = Config.TokenKey
 
 const IdTokenKey = Config.IdTokenKey
 
 const AccessTokenKey = Config.AccessTokenKey
+
+const casSessionKey = Config.CASSESSION
 
 const linkTokenKey = Config.LinkTokenKey
 
@@ -22,6 +24,7 @@ export function setToken(token) {
 }
 
 export function removeToken() {
+  Cookies.remove(casSessionKey)
   Cookies.remove(IdTokenKey)
   Cookies.remove(AccessTokenKey)
   return Cookies.remove(TokenKey)
@@ -45,7 +48,7 @@ export function setSysUI(uiInfo) {
 
 export function getSysUI() {
   const json = Cookies.get('sysUiInfo')
-  return json ? JSON.parse(json) : null
+  return json ? JSON.parse(json) : store.getters.uiInfo
 }
 
 export function getTimeOut() {

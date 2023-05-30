@@ -1,10 +1,10 @@
 package io.dataease.service.panel;
 
-import io.dataease.base.domain.PanelSubject;
-import io.dataease.base.domain.PanelSubjectExample;
-import io.dataease.base.mapper.PanelSubjectMapper;
 import io.dataease.controller.request.panel.PanelSubjectRequest;
 import io.dataease.exception.DataEaseException;
+import io.dataease.plugins.common.base.domain.PanelSubject;
+import io.dataease.plugins.common.base.domain.PanelSubjectExample;
+import io.dataease.plugins.common.base.mapper.PanelSubjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
@@ -49,12 +49,25 @@ public class PanelSubjectService {
         if (StringUtils.isEmpty(request.getId())) {
             PanelSubjectExample example = new PanelSubjectExample();
             example.createCriteria().andTypeEqualTo("self");
+            example.setOrderByClause("create_time desc");
             List<PanelSubject> subjectAll = panelSubjectMapper.selectByExample(example);
-            int count = CollectionUtils.isEmpty(subjectAll) ? 0 : subjectAll.size();
+            int count = CollectionUtils.isEmpty(subjectAll) ? 1 : subjectAll.get(0).getCreateNum() + 1;
+            String subjectName = "个人主题" + count;
+            if (!CollectionUtils.isEmpty(subjectAll)) {
+                for (PanelSubject subject : subjectAll) {
+                    if (subjectName.equals(subject.getName())) {
+                        count++;
+                        subjectName = "个人主题" + count;
+                    } else {
+                        break;
+                    }
+                }
+            }
             request.setId(UUID.randomUUID().toString());
             request.setCreateTime(System.currentTimeMillis());
             request.setType("self");
             request.setName("个人主题" + count);
+            request.setCreateNum(count);
             panelSubjectMapper.insertSelective(request);
         } else {
             PanelSubjectExample example = new PanelSubjectExample();

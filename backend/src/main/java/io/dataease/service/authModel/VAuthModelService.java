@@ -1,14 +1,15 @@
 package io.dataease.service.authModel;
 
-import io.dataease.base.mapper.ext.ExtVAuthModelMapper;
 import io.dataease.commons.utils.AuthUtils;
 import io.dataease.commons.utils.TreeUtils;
 import io.dataease.controller.request.authModel.VAuthModelRequest;
 import io.dataease.dto.authModel.VAuthModelDTO;
+import io.dataease.ext.ExtVAuthModelMapper;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,16 +25,28 @@ public class VAuthModelService {
     @Resource
     private ExtVAuthModelMapper extVAuthModelMapper;
 
+    public List<VAuthModelDTO> queryAuthModelByIds(String modelType, List<String> ids) {
+        if (CollectionUtils.isEmpty(ids)) {
+            return new ArrayList<>();
+        }
+        List<VAuthModelDTO> result = extVAuthModelMapper.queryAuthModelByIds(String.valueOf(AuthUtils.getUser().getUserId()), modelType, ids);
+        if (CollectionUtils.isEmpty(result)) {
+            return new ArrayList<>();
+        } else {
+            return result;
+        }
+    }
+
     public List<VAuthModelDTO> queryAuthModel(VAuthModelRequest request) {
         request.setUserId(String.valueOf(AuthUtils.getUser().getUserId()));
-        // 定时任务选数据集时，列表需去除空目录
-        if (request.isClearEmptyDir()) {
-            request.setMode(null);
-        }
         List<VAuthModelDTO> result = extVAuthModelMapper.queryAuthModel(request);
-        // 定时任务选数据集时，列表需去除空目录
+        if (CollectionUtils.isEmpty(result)) {
+            return new ArrayList<>();
+        }
+        if (request.getPrivileges() != null) {
+            result = filterPrivileges(request, result);
+        }
         if (request.isClearEmptyDir()) {
-            result = filterData(request, result);
             List<VAuthModelDTO> vAuthModelDTOS = TreeUtils.mergeTree(result);
             setAllLeafs(vAuthModelDTOS);
             removeEmptyDir(vAuthModelDTOS);
@@ -42,24 +55,15 @@ public class VAuthModelService {
         return TreeUtils.mergeTree(result);
     }
 
-    private List<VAuthModelDTO> filterData(VAuthModelRequest request, List<VAuthModelDTO> result) {
-        if (request.getDatasetMode() != null && request.getDatasetMode() == 1) {
-            result = result.stream().filter(vAuthModelDTO -> {
-                if (vAuthModelDTO.getNodeType().equalsIgnoreCase("spine") || (vAuthModelDTO.getNodeType().equalsIgnoreCase("leaf") && vAuthModelDTO.getMode().equals(1L)) && !vAuthModelDTO.getModelInnerType().equalsIgnoreCase("excel") && !vAuthModelDTO.getModelInnerType().equalsIgnoreCase("custom") && !vAuthModelDTO.getModelInnerType().equalsIgnoreCase("union")) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }).collect(Collectors.toList());
+    private List<VAuthModelDTO> filterPrivileges(VAuthModelRequest request, List<VAuthModelDTO> result) {
+        if (AuthUtils.getUser().getIsAdmin()) {
+            return result;
         }
         if (request.getPrivileges() != null) {
-            result = result.stream().filter(vAuthModelDTO -> {
-                if (vAuthModelDTO.getNodeType().equalsIgnoreCase("spine") || (vAuthModelDTO.getNodeType().equalsIgnoreCase("leaf") && vAuthModelDTO.getPrivileges() != null && vAuthModelDTO.getPrivileges().contains(request.getPrivileges()))) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }).collect(Collectors.toList());
+            result = result.stream().filter(vAuthModelDTO -> "spine".equalsIgnoreCase(vAuthModelDTO.getNodeType())
+                    || ("leaf".equalsIgnoreCase(vAuthModelDTO.getNodeType())
+                    && vAuthModelDTO.getPrivileges() != null
+                    && vAuthModelDTO.getPrivileges().contains(request.getPrivileges()))).collect(Collectors.toList());
         }
         return result;
     }
@@ -68,10 +72,10 @@ public class VAuthModelService {
         if (CollectionUtils.isEmpty(result)) {
             return;
         }
-        Iterator iterator = result.listIterator();
+        Iterator<VAuthModelDTO> iterator = result.listIterator();
         while (iterator.hasNext()) {
-            VAuthModelDTO tmp = (VAuthModelDTO) iterator.next();
-            if (tmp.getNodeType().equalsIgnoreCase("spine") && tmp.getAllLeafs() == 0) {
+            VAuthModelDTO tmp = iterator.next();
+            if ("spine".equalsIgnoreCase(tmp.getNodeType()) && tmp.getAllLeafs() == 0) {
                 iterator.remove();
             } else {
                 removeEmptyDir(tmp.getChildren());
@@ -85,9 +89,9 @@ public class VAuthModelService {
                 vAuthModelDTO.setAllLeafs(0);
                 continue;
             }
-            long leafs = 0l;
+            long leafs = 0L;
             for (VAuthModelDTO child : vAuthModelDTO.getChildren()) {
-                if (child.getNodeType().equalsIgnoreCase("leaf")) {
+                if ("leaf".equalsIgnoreCase(child.getNodeType())) {
                     leafs = leafs + 1;
                 } else {
                     leafs = +leafs + getLeafs(child);
@@ -98,13 +102,13 @@ public class VAuthModelService {
     }
 
     private long getLeafs(VAuthModelDTO child) {
-        long leafs = 0l;
+        long leafs = 0L;
         if (CollectionUtils.isEmpty(child.getChildren())) {
             child.setAllLeafs(0);
             return leafs;
         }
         for (VAuthModelDTO childChild : child.getChildren()) {
-            if (childChild.getNodeType().equalsIgnoreCase("leaf")) {
+            if ("leaf".equalsIgnoreCase(childChild.getNodeType())) {
                 leafs = leafs + 1;
             } else {
                 leafs = +leafs + getLeafs(childChild);

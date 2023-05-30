@@ -1,8 +1,13 @@
 <template>
-  <de-container v-loading="$store.getters.loadingMap[$store.getters.currentPath]" style="background-color: #f7f8fa">
+  <de-container
+    v-loading="$store.getters.loadingMap[$store.getters.currentPath]"
+    style="background-color: #f7f8fa"
+  >
     <de-main-container :class="{'full-height':fullHeightFlag}">
-      <panel-main v-show="componentName==='PanelMain'" ref="panel_main" />
-      <chart-edit v-if="componentName==='ChartEdit'" :param="param" />
+      <panel-main
+        v-show="componentName==='PanelMain'"
+        ref="panel_main"
+      />
       <panel-edit v-if="componentName==='PanelEdit'" />
     </de-main-container>
   </de-container>
@@ -13,17 +18,27 @@ import bus from '@/utils/bus'
 import DeMainContainer from '@/components/dataease/DeMainContainer'
 import DeContainer from '@/components/dataease/DeContainer'
 import PanelMain from '@/views/panel/list/PanelMain'
-import ChartEdit from '@/views/chart/view/ChartEdit'
 import PanelEdit from '@/views/panel/edit'
-
 export default {
   name: 'Panel',
-  components: { DeMainContainer, DeContainer, PanelMain, ChartEdit, PanelEdit },
+  components: { DeMainContainer, DeContainer, PanelMain, PanelEdit },
+  beforeRouteLeave(to, from, next) {
+    if (this.componentName === 'PanelEdit') {
+      next(false)
+      if (confirm(this.$t('panel.edit_leave_tips'))) {
+        bus.$emit('PanelSwitchComponent', { name: 'PanelMain' })
+        next()
+      }
+    } else {
+      next()
+    }
+  },
   data() {
     return {
       component: PanelMain,
       componentName: 'PanelMain',
-      param: {}
+      param: {},
+      contentHasSave: false
     }
   },
   computed: {
@@ -32,27 +47,26 @@ export default {
     }
   },
   watch: {
-    $route(to, from) {
-      // 对路由变化作出响应...
-    }
   },
   mounted() {
-    bus.$on('to-msg-share', params => {
-      this.toMsgShare(params)
-    })
-    bus.$on('PanelSwitchComponent', (c) => {
-      this.param = c.param
-      this.componentName = c.name
-      this.$store.dispatch('panel/setMainActiveName', c.name)
-    })
+    bus.$on('to-msg-share', this.toMsgShare)
+  },
+  beforeDestroy() {
+    bus.$off('to-msg-share', this.toMsgShare)
+    bus.$off('PanelSwitchComponent', this.panelSwitchComponent)
   },
   created() {
-    bus.$emit('PanelSwitchComponent', { name: 'PanelMain' })
+    bus.$on('PanelSwitchComponent', this.panelSwitchComponent)
     this.$store.dispatch('app/toggleSideBarHide', true)
     const routerParam = this.$router.currentRoute.params
     this.toMsgShare(routerParam)
   },
   methods: {
+    panelSwitchComponent(c) {
+      this.param = c.param
+      this.componentName = c.name
+      this.$store.dispatch('panel/setMainActiveName', c.name)
+    },
     toMsgShare(routerParam) {
       if (routerParam !== null && routerParam.msgNotification) {
         const panelShareTypeIds = [1, 2, 3]

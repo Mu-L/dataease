@@ -2,6 +2,7 @@ package io.dataease.plugins.server;
 
 import io.dataease.commons.utils.ServletUtils;
 import io.dataease.plugins.common.dto.PluginSysMenu;
+import io.dataease.plugins.common.dto.StaticResource;
 import io.dataease.plugins.common.service.PluginComponentService;
 import io.dataease.plugins.common.service.PluginMenuService;
 import io.dataease.plugins.config.SpringContextUtil;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import springfox.documentation.annotations.ApiIgnore;
+
 import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -32,27 +34,27 @@ public class PluginCommonServer {
             List<PluginSysMenu> menus = service.menus();
             if (menus.stream().anyMatch(menu -> {
                 atomicReference.set(menu);
-                return menu.getMenuId() == menuId;
+                return menu.getMenuId().equals(menuId);
             })) {
                 String jsName = atomicReference.get().getComponent();
                 HttpServletResponse response = ServletUtils.response();
                 BufferedInputStream bis = null;
                 InputStream inputStream = null;
                 OutputStream os = null; //输出流
-                try{
+                try {
                     inputStream = service.vueResource(jsName);
                     byte[] buffer = new byte[1024];
                     os = response.getOutputStream();
                     bis = new BufferedInputStream(inputStream);
                     int i = bis.read(buffer);
-                    while(i != -1){
+                    while (i != -1) {
                         os.write(buffer, 0, i);
                         i = bis.read(buffer);
                     }
                     os.flush();
-                }catch (Exception e) {
+                } catch (Exception e) {
                     e.printStackTrace();
-                }finally {
+                } finally {
                     try {
                         bis.close();
                         inputStream.close();
@@ -68,28 +70,28 @@ public class PluginCommonServer {
 
     @GetMapping("/component/{componentName}")
     public void componentInfo(@PathVariable String componentName) {
-       Map<String, PluginComponentService> beansOfType = SpringContextUtil.getApplicationContext().getBeansOfType(PluginComponentService.class);
-       beansOfType.values().stream().forEach(service -> {
+        Map<String, PluginComponentService> beansOfType = SpringContextUtil.getApplicationContext().getBeansOfType(PluginComponentService.class);
+        beansOfType.values().stream().forEach(service -> {
             List<String> components = service.components();
             if (components.contains(componentName)) {
                 HttpServletResponse response = ServletUtils.response();
                 BufferedInputStream bis = null;
                 InputStream inputStream = null;
                 OutputStream os = null; //输出流
-                try{
+                try {
                     inputStream = service.vueResource(componentName);
                     byte[] buffer = new byte[1024];
                     os = response.getOutputStream();
                     bis = new BufferedInputStream(inputStream);
                     int i = bis.read(buffer);
-                    while(i != -1){
+                    while (i != -1) {
                         os.write(buffer, 0, i);
                         i = bis.read(buffer);
                     }
                     os.flush();
-                }catch (Exception e) {
+                } catch (Exception e) {
                     e.printStackTrace();
-                }finally {
+                } finally {
                     try {
                         bis.close();
                         inputStream.close();
@@ -100,6 +102,48 @@ public class PluginCommonServer {
                 }
                 return;
             }
-       });
+        });
+    }
+
+    @GetMapping("/staticInfo/{name}/{suffix}")
+    public void staticInfo(@PathVariable("name") String name, @PathVariable("suffix") String suffix) {
+        Map<String, PluginComponentService> beansOfType = SpringContextUtil.getApplicationContext().getBeansOfType(PluginComponentService.class);
+        beansOfType.values().stream().forEach(service -> {
+            List<StaticResource> staticResources = service.staticResources();
+
+            if (staticResources.stream().anyMatch(resource -> resource.match(name, suffix))) {
+                HttpServletResponse response = ServletUtils.response();
+                BufferedInputStream bis = null;
+                InputStream inputStream = null;
+                OutputStream os = null; //输出流
+                try {
+                    inputStream = service.vueResource(name, suffix);
+                    byte[] buffer = new byte[1024];
+                    os = response.getOutputStream();
+                    bis = new BufferedInputStream(inputStream);
+                    int i = bis.read(buffer);
+                    while (i != -1) {
+                        os.write(buffer, 0, i);
+                        i = bis.read(buffer);
+                    }
+                    if (suffix.indexOf("svg") != -1)
+                        response.setContentType("image/svg+xml");
+                    if (suffix.indexOf("png") != -1)
+                        response.setContentType("image/png");
+                    os.flush();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        bis.close();
+                        inputStream.close();
+                        os.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                return;
+            }
+        });
     }
 }

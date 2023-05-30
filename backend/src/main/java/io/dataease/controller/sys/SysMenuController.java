@@ -1,7 +1,7 @@
 package io.dataease.controller.sys;
 
 
-import io.dataease.base.domain.SysMenu;
+import io.dataease.plugins.common.base.domain.SysMenu;
 import io.dataease.commons.utils.BeanUtils;
 
 import io.dataease.controller.handler.annotation.I18n;
@@ -78,8 +78,8 @@ public class SysMenuController {
 
     @PostMapping("/childMenus/{pid}")
     public Set<Long> childMenus(@PathVariable Long pid){
-        List<MenuNodeResponse> childs = menuService.childs(pid);
-        Set<Long> sets = childs.stream().map(MenuNodeResponse::getMenuId).collect(Collectors.toSet());
+        List<MenuNodeResponse> children = menuService.children(pid);
+        Set<Long> sets = children.stream().map(MenuNodeResponse::getMenuId).collect(Collectors.toSet());
         sets.add(pid);
         return sets;
     }

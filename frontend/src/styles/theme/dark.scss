@@ -22,10 +22,32 @@ $--color-black: #FFFFFF;
 $--background-color-base: #171b22;
 
 
+/* 定义全局变量 */
+:root {
+  --BgSelectColor: #ffffff;
+  --SelectColor: #fff;
+  --BrSelectColor: #fff;
+
+  --BgSelectTreeColor: #ffffff;
+  --SelectTreeColor: #fff;
+  --BrSelectTreeColor: #fff;
+
+  --BgDateColor: #ffffff;
+  --DateColor: #fff;
+  --BrDateColor: #fff;
+
+  --BgRangeColor: #ffffff;
+  --RangeColor: #fff;
+  --BrRangeColor: #fff;
+
+  --BgSelectGridColor: #ffffff;
+  --SelectGridColor: #fff;
+  --BrSelectGridColor: #fff;
+}
 
 // 与CSS原生变量映射
 #app {
-  --Main:#2681ff;
+  --Main: #2681ff;
   --MainBG: #171b22;
   --ContentBG: #1b2a32;
   --TextActive: #FFFFFF;
@@ -46,13 +68,13 @@ $--background-color-base: #171b22;
 
   --TableBG: #21333b;
   --TableColor: #acbac3;
-//   --TableBorder: .05rem solid #495865;
+  //   --TableBorder: .05rem solid #495865;
   --TableBorderColor: #495865;
 
   --background-color-base: #171b22;
 
 
-  
 }
+
 
 

@@ -1,15 +1,35 @@
 <template>
   <div>
-    <el-form ref="form" :model="compareItem.compareCalc" label-width="80px" size="mini" class="compare-form">
+    <el-form
+      ref="form"
+      :model="compareItem.compareCalc"
+      label-width="80px"
+      size="mini"
+      class="compare-form"
+    >
       <el-form-item :label="$t('chart.compare_date')">
-        <el-select v-model="compareItem.compareCalc.field" :placeholder="$t('chart.pls_select_field')" size="mini" @change="initCompareType">
-          <el-option v-for="field in fieldList" :key="field.id" :label="field.name + '(' + $t('chart.' + field.dateStyle) + ')'" :value="field.id" />
+        <el-select
+          v-model="compareItem.compareCalc.field"
+          :placeholder="$t('chart.pls_select_field')"
+          size="mini"
+          @change="initCompareType"
+        >
+          <el-option
+            v-for="field in fieldList"
+            :key="field.id"
+            :label="field.name + '(' + $t('chart.' + field.dateStyle) + ')'"
+            :value="field.id"
+          />
         </el-select>
       </el-form-item>
 
       <el-form-item :label="$t('chart.compare_type')">
         <el-radio-group v-model="compareItem.compareCalc.type">
-          <el-radio v-for="radio in compareList" :key="radio.value" :label="radio.value">{{ $t('chart.' + radio.value) }}</el-radio>
+          <el-radio
+            v-for="radio in compareList"
+            :key="radio.value"
+            :label="radio.value"
+          >{{ $t('chart.' + radio.value) }}</el-radio>
         </el-radio-group>
       </el-form-item>
 
@@ -21,8 +41,14 @@
       </el-form-item>
 
       <el-form-item :label="$t('chart.compare_calc_expression')">
-        <span v-if="compareItem.compareCalc.resultData === 'sub'" class="exp-style">本期数据 - 上期数据</span>
-        <span v-else-if="compareItem.compareCalc.resultData === 'percent'" class="exp-style">(本期数据 / 上期数据 - 1) * 100%</span>
+        <span
+          v-if="compareItem.compareCalc.resultData === 'sub'"
+          class="exp-style"
+        >本期数据 - 上期数据</span>
+        <span
+          v-else-if="compareItem.compareCalc.resultData === 'percent'"
+          class="exp-style"
+        >(本期数据 / 上期数据 - 1) * 100%</span>
       </el-form-item>
     </el-form>
   </div>
@@ -30,6 +56,7 @@
 
 <script>
 import { compareDayList, compareMonthList, compareYearList } from '@/views/chart/chart/compare'
+import { SUPPORT_Y_M } from '@/views/chart/chart/chart'
 
 export default {
   name: 'CompareEdit',
@@ -62,8 +89,26 @@ export default {
   methods: {
     // 过滤xaxis，extStack所有日期字段
     initFieldList() {
-      const xAxis = JSON.parse(this.chart.xaxis)
+      let xAxis = null
+      if (Object.prototype.toString.call(this.chart.xaxis) === '[object Array]') {
+        xAxis = JSON.parse(JSON.stringify(this.chart.xaxis))
+      } else {
+        xAxis = JSON.parse(this.chart.xaxis)
+      }
       const t1 = xAxis.filter(ele => { return ele.deType === 1 })
+
+      if (this.chart.type === 'table-pivot') {
+        let xAxisExt = null
+        if (Object.prototype.toString.call(this.chart.xaxisExt) === '[object Array]') {
+          xAxisExt = JSON.parse(JSON.stringify(this.chart.xaxisExt))
+        } else {
+          xAxisExt = JSON.parse(this.chart.xaxisExt)
+        }
+        const t2 = xAxisExt.filter(ele => { return ele.deType === 1 })
+
+        t1.push(...t2)
+      }
+
       this.fieldList = t1
       // 如果没有选中字段，则默认选中第一个
       if ((!this.compareItem.compareCalc.field || this.compareItem.compareCalc.field === '') && this.fieldList.length > 0) {
@@ -103,15 +148,15 @@ export default {
 .el-form-item{
   margin-bottom: 10px!important;
 }
-.compare-form >>> .el-form-item__label{
+.compare-form ::v-deep .el-form-item__label{
   font-size: 12px!important;
   font-weight: 400!important;
 }
-.compare-form >>> .el-radio__label{
+.compare-form ::v-deep .el-radio__label{
   font-size: 12px!important;
   font-weight: 400!important;
 }
-.el-select-dropdown__item >>> span{
+.el-select-dropdown__item ::v-deep span{
   font-size: 12px!important;
 }
 .exp-style{

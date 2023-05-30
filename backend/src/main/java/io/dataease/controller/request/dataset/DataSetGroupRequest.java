@@ -1,6 +1,6 @@
 package io.dataease.controller.request.dataset;
 
-import io.dataease.base.domain.DatasetGroup;
+import io.dataease.plugins.common.base.domain.DatasetGroup;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
@@ -18,4 +18,6 @@ public class DataSetGroupRequest extends DatasetGroup {
     private String userId;
     @ApiModelProperty("ID集合")
     private Set<String> ids;
+    @ApiModelProperty("排除的ID")
+    private String excludedId;
 }

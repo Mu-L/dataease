@@ -1,13 +1,40 @@
 <template>
-  <div class="children-node node-container" :style="{height:nodeHeight}">
+  <div
+    class="children-node node-container"
+    :style="{ height: nodeHeight }"
+  >
     <div class="node-line">
-      <svg-icon v-if="childrenNode.unionToParent.unionType === 'left'" icon-class="left-join" class="join-icon" @click="unionEdit" />
-      <svg-icon v-else-if="childrenNode.unionToParent.unionType === 'right'" icon-class="right-join" class="join-icon" @click="unionEdit" />
-      <svg-icon v-else-if="childrenNode.unionToParent.unionType === 'inner'" icon-class="inner-join" class="join-icon" @click="unionEdit" />
-      <svg-icon v-else icon-class="no-join" class="join-icon" @click="unionEdit" />
+      <svg-icon
+        v-if="childrenNode.unionToParent.unionType === 'left'"
+        icon-class="left-join"
+        class="join-icon"
+        @click="unionEdit"
+      />
+      <svg-icon
+        v-else-if="childrenNode.unionToParent.unionType === 'right'"
+        icon-class="right-join"
+        class="join-icon"
+        @click="unionEdit"
+      />
+      <svg-icon
+        v-else-if="childrenNode.unionToParent.unionType === 'inner'"
+        icon-class="inner-join"
+        class="join-icon"
+        @click="unionEdit"
+      />
+      <svg-icon
+        v-else
+        icon-class="no-join"
+        class="join-icon"
+        @click="unionEdit"
+      />
 
       <svg class="join-svg-container">
-        <path fill="none" stroke="#dcdfe6" :d="pathParam + lineLength" />
+        <path
+          fill="none"
+          stroke="#dcdfe6"
+          :d="pathParam + lineLength"
+        />
       </svg>
     </div>
 
@@ -23,7 +50,7 @@
     <!--递归调用自身，完成树状结构-->
     <div>
       <union-node
-        v-for="(item,index) in childrenNode.childrenDs"
+        v-for="(item, index) in childrenNode.childrenDs"
         :key="index"
         :node-index="index"
         :children-node="item"
@@ -36,13 +63,35 @@
     </div>
 
     <!--编辑关联关系-->
-    <el-dialog v-if="editUnion" v-dialogDrag top="5vh" :title="unionParam.type === 'add' ? $t('dataset.add_union_relation') : $t('dataset.edit_union_relation')" :visible="editUnion" :show-close="false" width="600px" class="dialog-css" destroy-on-close>
+    <el-drawer
+      v-if="editUnion"
+      v-closePress
+      :title="
+        unionParam.type === 'add'
+          ? $t('dataset.add_union_relation')
+          : $t('dataset.edit_union_relation')
+      "
+      :visible.sync="editUnion"
+      custom-class="de-user-drawer union-dataset-drawer"
+      size="840px"
+      direction="rtl"
+    >
       <union-edit :union-param="unionParam" />
-      <div slot="footer" class="dialog-footer">
-        <el-button size="mini" @click="closeEditUnion()">{{ $t('dataset.cancel') }}</el-button>
-        <el-button type="primary" size="mini" @click="confirmEditUnion()">{{ $t('dataset.confirm') }}</el-button>
+      <div class="de-foot">
+        <deBtn
+          secondary
+          @click="closeEditUnion()"
+        >{{
+          $t('dataset.cancel')
+        }}</deBtn>
+        <deBtn
+          type="primary"
+          @click="confirmEditUnion()"
+        >{{
+          $t('dataset.confirm')
+        }}</deBtn>
       </div>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -135,19 +184,28 @@ export default {
       } else {
         if (this.nodeIndex === 0) {
           this.pathParam = this.pathExt
-          this.lineLength = this.childrenNode.allChildCount < 2 ? '' : ('l0,' + ((this.childrenNode.allChildCount - 1) * 40))
-        } else if (this.nodeIndex === (this.childrenList.length - 1)) {
+          this.lineLength =
+            this.childrenNode.allChildCount < 2
+              ? ''
+              : 'l0,' + (this.childrenNode.allChildCount - 1) * 40
+        } else if (this.nodeIndex === this.childrenList.length - 1) {
           this.pathParam = this.pathMore
           this.lineLength = ''
         } else {
           this.pathParam = this.pathMoreExt
-          this.lineLength = this.childrenNode.allChildCount < 2 ? '' : ('l0,' + ((this.childrenNode.allChildCount - 1) * 40))
+          this.lineLength =
+            this.childrenNode.allChildCount < 2
+              ? ''
+              : 'l0,' + (this.childrenNode.allChildCount - 1) * 40
         }
       }
     },
     // 计算行高
     calcNodeHeight() {
-      this.nodeHeight = this.childrenNode.allChildCount < 1 ? '40px' : (this.childrenNode.allChildCount * 40 + 'px')
+      this.nodeHeight =
+        this.childrenNode.allChildCount < 1
+          ? '40px'
+          : this.childrenNode.allChildCount * 40 + 'px'
     },
     calc(param) {
       this.notifyFirstParent(param)
@@ -184,7 +242,12 @@ export default {
       if (this.unionParam.type === 'add') {
         this.childrenNode.childrenDs.pop()
         // 添加关联的时候，如果关闭关联关系设置的界面，则删除子节点，同时向父级传递消息
-        this.notifyFirstParent({ type: 'delete', grandParentAdd: true, grandParentSub: true, subCount: 0 })
+        this.notifyFirstParent({
+          type: 'delete',
+          grandParentAdd: true,
+          grandParentSub: true,
+          subCount: 0
+        })
       } else {
         // 向第一级传递
         this.$emit('cancelUnionEdit', this.tempData)
@@ -217,7 +280,12 @@ export default {
       }
       for (let i = 0; i < union.unionFields.length; i++) {
         const ele = union.unionFields[i]
-        if (!ele.parentField || !ele.parentField.id || !ele.currentField || !ele.currentField.id) {
+        if (
+          !ele.parentField ||
+          !ele.parentField.id ||
+          !ele.currentField ||
+          !ele.currentField.id
+        ) {
           return false
         }
       }
@@ -228,30 +296,34 @@ export default {
 </script>
 
 <style scoped>
-.node-container{
+.node-container {
   display: flex;
   position: relative;
 }
-.join-icon{
+.join-icon {
   height: 26px;
   font-size: 24px;
   line-height: 26px;
   position: absolute;
   left: 18px;
-  color:#dcdfe6;
+  color: #dcdfe6;
 }
-.join-svg-container{
-  width:60px;
+.join-svg-container {
+  width: 60px;
 }
-.node-line{
+.node-line {
   display: flex;
   position: relative;
 }
-.join-icon:hover{
+.join-icon:hover {
   cursor: pointer;
-  color: var(--Main,#2681ff);
+  color: var(--Main, #2681ff);
 }
-.dialog-css >>> .el-dialog__body {
-  padding: 0 20px;
+</style>
+<style lang="scss">
+.union-dataset-drawer {
+  .el-drawer__body {
+    padding: 24px;
+  }
 }
 </style>

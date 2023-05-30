@@ -1,50 +1,96 @@
 <template xmlns:el-col="http://www.w3.org/1999/html">
-  <el-col style="padding: 0 5px 0 5px;">
+  <el-col style="padding: 1px 24px 16px 24px">
     <el-col>
       <el-row style="margin-bottom: 10px">
-        <el-col :span="16">
+        <el-col :span="24">
           <el-input
             v-model="filterText"
-            size="mini"
+            size="small"
             :placeholder="$t('commons.search')"
             prefix-icon="el-icon-search"
             clearable
             class="main-area-input"
-          />
-        </el-col>
-        <el-col :span="8">
-          <el-dropdown>
-            <el-button size="mini" type="primary">
-              {{ searchMap[searchType] }}<i class="el-icon-arrow-down el-icon--right" />
-            </el-button>
-            <el-dropdown-menu slot="dropdown">
-              <el-dropdown-item @click.native="searchTypeClick('all')">全部</el-dropdown-item>
-              <el-dropdown-item @click.native="searchTypeClick('folder')">目录</el-dropdown-item>
-            </el-dropdown-menu>
-          </el-dropdown>
+          >
+            <el-select
+              slot="append"
+              v-model="searchType"
+              :placeholder="searchMap[searchType]"
+            >
+              <el-option
+                :label="$t('commons.all')"
+                value="all"
+              />
+              <el-option
+                :label="$t('commons.folder')"
+                value="folder"
+              />
+            </el-select>
+          </el-input>
         </el-col>
       </el-row>
-      <el-row>
+      <el-row class="de-tree">
         <span class="header-title">{{ $t('panel.default_panel') }}</span>
         <div class="block">
           <el-tree
             ref="default_panel_tree"
-            :data="defaultData"
+            :data="expandedData"
             node-key="id"
-            :highlight-current="activeTree==='system'"
+            :highlight-current="activeTree === 'system'"
             :expand-on-click-node="true"
             :filter-node-method="filterNode"
             @node-click="nodeClick"
           >
-            <span slot-scope="{ node, data }" class="custom-tree-node father">
-              <span style="display: flex; flex: 1 1 0%; width: 0px;">
+            <span
+              slot-scope="{ node, data }"
+              class="custom-tree-node father"
+            >
+              <span style="display: flex; flex: 1 1 0%; width: 0px">
                 <span>
-                  <svg-icon icon-class="panel" class="ds-icon-scene" />
+                  <svg-icon
+                    v-if="!data.mobileLayout"
+                    :icon-class="'panel-' + data.status"
+                    class="ds-icon-scene"
+                  />
+                  <svg-icon
+                    v-if="data.mobileLayout"
+                    :icon-class="'panel-mobile-' + data.status"
+                    class="ds-icon-scene"
+                  />
                 </span>
-                <span style="margin-left: 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ data.name }}</span>
+                <span
+                  style="
+                    margin-left: 6px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                  :title="data.name"
+                >{{ data.name }}</span>
               </span>
-              <span style="margin-left: 12px;" class="child" @click.stop>
-                <el-dropdown v-if="hasDataPermission('manage',data.privileges)" trigger="click" size="small" @command="clickMore">
+              <span
+                v-if="hasDataPermission('manage', data.privileges)"
+                :title="$t('panel.to_top')"
+                class="child"
+                @click.stop
+              >
+                <el-button
+                  icon="el-icon-upload2"
+                  type="text"
+                  size="small"
+                  @click="toTop(data, node)"
+                />
+              </span>
+              <span
+                style="margin-left: 12px"
+                class="child"
+                @click.stop
+              >
+                <el-dropdown
+                  v-if="hasDataPermission('manage', data.privileges)"
+                  trigger="click"
+                  size="small"
+                  @command="clickMore"
+                >
                   <span class="el-dropdown-link">
                     <el-button
                       icon="el-icon-more"
@@ -53,53 +99,107 @@
                     />
                   </span>
                   <el-dropdown-menu slot="dropdown">
-                    <el-dropdown-item icon="el-icon-edit-outline" :command="beforeClickMore('rename',data,node)">
+                    <el-dropdown-item
+                      icon="el-icon-edit-outline"
+                      :command="beforeClickMore('rename', data, node)"
+                    >
                       {{ $t('panel.rename') }}
                     </el-dropdown-item>
-                    <el-dropdown-item icon="el-icon-delete" :command="beforeClickMore('delete',data,node)">
-                      {{ $t('panel.delete') }}
+                    <el-dropdown-item
+                      icon="el-icon-delete"
+                      :command="beforeClickMore('delete', data, node)"
+                    >
+                      {{ $t('commons.cancel') + $t('emailtask.default') }}
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </el-dropdown>
               </span>
             </span>
           </el-tree>
+          <p
+            v-if="defaultData && defaultData.length > 3"
+            class="default-expansion"
+            @click="defaultExpansion = !defaultExpansion"
+          >
+            {{ defaultExpansion ? $t('panel.fold') : $t('panel.expand') }}
+            <i
+              :class="[
+                defaultExpansion ? 'el-icon-arrow-up' : 'el-icon-arrow-down'
+              ]"
+            />
+          </p>
         </div>
       </el-row>
 
       <el-row>
         <span class="header-title">
           {{ $t('panel.panel_list') }}
-          <el-button style="float: right;padding-right: 7px;margin-top: -8px" icon="el-icon-plus" type="text" @click="showEditPanel(newFolder)" />
+          <el-button
+            style="float: right; padding-right: 7px; margin-top: -8px"
+            icon="el-icon-plus"
+            type="text"
+            @click="showEditPanel(newFolder)"
+          />
         </span>
       </el-row>
-      <el-col class="custom-tree-container">
+      <el-col class="custom-tree-container de-tree">
         <div class="block">
           <el-tree
             ref="panel_list_tree"
             :default-expanded-keys="expandedArray"
             :data="tData"
             node-key="id"
-            :highlight-current="activeTree==='self'"
+            :highlight-current="activeTree === 'self'"
             :expand-on-click-node="true"
             :filter-node-method="filterNode"
             @node-expand="nodeExpand"
             @node-collapse="nodeCollapse"
             @node-click="nodeClick"
           >
-            <span slot-scope="{ node, data }" class="custom-tree-node-list father">
-              <span style="display: flex; flex: 1 1 0%; width: 0px;">
+            <span
+              slot-scope="{ node, data }"
+              class="custom-tree-node-list father"
+            >
+              <span style="display: flex; flex: 1 1 0%; width: 0px">
                 <span v-if="data.nodeType === 'panel'">
-                  <svg-icon icon-class="panel" class="ds-icon-scene" />
+                  <svg-icon
+                    v-if="!data.mobileLayout"
+                    :icon-class="'panel-' + data.status"
+                    class="ds-icon-scene"
+                  />
+                  <svg-icon
+                    v-if="data.mobileLayout"
+                    :icon-class="'panel-mobile-' + data.status"
+                    class="ds-icon-scene"
+                  />
                 </span>
                 <span v-if="data.nodeType === 'folder'">
-                  <i class="el-icon-folder" />
+                  <svg-icon icon-class="scene"/>
                 </span>
-                <span style="margin-left: 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ data.name }}</span>
+                <span
+                  :class="data.status"
+                  style="
+                    margin-left: 6px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                  :title="data.name"
+                >{{ data.name }}</span>
               </span>
-              <span v-if="hasDataPermission('manage',data.privileges)" class="child">
-                <span v-if="data.nodeType ==='folder'" @click.stop>
-                  <el-dropdown trigger="click" size="small" @command="showEditPanel">
+              <span
+                v-if="hasDataPermission('manage', data.privileges)"
+                class="child"
+              >
+                <span
+                  v-if="data.nodeType === 'folder'"
+                  @click.stop
+                >
+                  <el-dropdown
+                    trigger="click"
+                    size="small"
+                    @command="showEditPanel"
+                  >
                     <span class="el-dropdown-link">
                       <el-button
                         icon="el-icon-plus"
@@ -108,18 +208,28 @@
                       />
                     </span>
                     <el-dropdown-menu slot="dropdown">
-                      <el-dropdown-item :command="beforeClickEdit('folder','new',data,node)">
-                        <i class="el-icon-folder" />
-                        <span>{{ $t('panel.groupAdd') }}</span>
+                      <el-dropdown-item
+                        :command="beforeClickEdit('folder', 'new', data, node)"
+                      >
+                        <svg-icon icon-class="scene"/>
+                        <span style="margin-left: 5px">{{ $t('panel.groupAdd') }}</span>
                       </el-dropdown-item>
-                      <el-dropdown-item :command="beforeClickEdit('panel','new',data,node)">
-                        <svg-icon icon-class="panel" class="ds-icon-scene" />
+                      <el-dropdown-item
+                        :command="beforeClickEdit('panel', 'new', data, node)"
+                      >
+                        <svg-icon
+                          icon-class="panel"
+                          class="ds-icon-scene"
+                        />
                         <span>{{ $t('panel.panelAdd') }}</span>
                       </el-dropdown-item>
                     </el-dropdown-menu>
                   </el-dropdown>
                 </span>
-                <span v-if="data.nodeType==='panel'" @click.stop>
+                <span
+                  v-if="data.nodeType === 'panel'"
+                  @click.stop
+                >
                   <el-button
                     icon="el-icon-edit"
                     type="text"
@@ -127,8 +237,15 @@
                     @click="edit(data, node)"
                   />
                 </span>
-                <span style="margin-left: 12px;" @click.stop>
-                  <el-dropdown trigger="click" size="small" @command="clickMore">
+                <span
+                  style="margin-left: 12px"
+                  @click.stop
+                >
+                  <el-dropdown
+                    trigger="click"
+                    size="small"
+                    @command="clickMore"
+                  >
                     <span class="el-dropdown-link">
                       <el-button
                         icon="el-icon-more"
@@ -137,28 +254,58 @@
                       />
                     </span>
                     <el-dropdown-menu slot="dropdown">
-                      <el-dropdown-item v-if="data.nodeType==='panel'" icon="el-icon-edit" :command="beforeClickMore('edit',data,node)">
+                      <el-dropdown-item
+                        v-if="data.nodeType === 'panel'"
+                        icon="el-icon-edit"
+                        :command="beforeClickMore('edit', data, node)"
+                      >
                         {{ $t('panel.edit') }}
                       </el-dropdown-item>
-                      <el-dropdown-item v-if="data.nodeType==='panel'" icon="el-icon-share" :command="beforeClickMore('share',data,node)">
+                      <el-dropdown-item
+                        v-if="data.nodeType === 'panel'"
+                        icon="el-icon-share"
+                        :command="beforeClickMore('share', data, node)"
+                      >
                         {{ $t('panel.share') }}
                       </el-dropdown-item>
-                      <el-dropdown-item v-if="data.nodeType==='panel'" icon="el-icon-document-copy" :command="beforeClickMore('copy',data,node)">
+                      <el-dropdown-item
+                        v-if="data.nodeType === 'panel'"
+                        icon="el-icon-document-copy"
+                        :command="beforeClickMore('copy', data, node)"
+                      >
                         {{ $t('panel.copy') }}
                       </el-dropdown-item>
-                      <el-dropdown-item icon="el-icon-right" :command="beforeClickMore('move',data,node)">
+                      <el-dropdown-item
+                        icon="el-icon-right"
+                        :command="beforeClickMore('move', data, node)"
+                      >
                         {{ $t('dataset.move_to') }}
                       </el-dropdown-item>
-                      <el-dropdown-item v-if="data.nodeType==='panel'" icon="el-icon-paperclip" :command="beforeClickMore('link',data,node)">
+                      <el-dropdown-item
+                        v-if="data.nodeType === 'panel'"
+                        icon="el-icon-paperclip"
+                        :command="beforeClickMore('link', data, node)"
+                      >
                         {{ $t('panel.create_public_links') }}
                       </el-dropdown-item>
-                      <el-dropdown-item v-if="data.nodeType==='panel'" :disabled="data.isDefault" icon="el-icon-copy-document" :command="beforeClickMore('toDefaultPanel',data,node)">
+                      <el-dropdown-item
+                        v-if="data.nodeType === 'panel'"
+                        :disabled="data.isDefault"
+                        icon="el-icon-copy-document"
+                        :command="beforeClickMore('toDefaultPanel', data, node)"
+                      >
                         {{ $t('panel.to_default_panel') }}
                       </el-dropdown-item>
-                      <el-dropdown-item icon="el-icon-edit-outline" :command="beforeClickMore('rename',data,node)">
+                      <el-dropdown-item
+                        icon="el-icon-edit-outline"
+                        :command="beforeClickMore('rename', data, node)"
+                      >
                         {{ $t('panel.rename') }}
                       </el-dropdown-item>
-                      <el-dropdown-item icon="el-icon-delete" :command="beforeClickMore('delete',data,node)">
+                      <el-dropdown-item
+                        icon="el-icon-delete"
+                        :command="beforeClickMore('delete', data, node)"
+                      >
                         {{ $t('panel.delete') }}
                       </el-dropdown-item>
                     </el-dropdown-menu>
@@ -170,15 +317,42 @@
         </div>
       </el-col>
 
-      <el-dialog v-dialogDrag :title="dialogTitle" :visible="editGroup" :show-close="false" width="500px">
-        <el-form ref="groupForm" :model="groupForm" :rules="groupFormRules" @keypress.enter.native="saveGroup(groupForm)">
-          <el-form-item :label="$t('commons.name')" prop="name">
-            <el-input v-model="groupForm.name" />
+      <el-dialog
+        v-dialogDrag
+        :title="dialogTitle"
+        :visible="editGroup"
+        :show-close="false"
+        width="500px"
+      >
+        <el-form
+          ref="groupForm"
+          :model="groupForm"
+          :rules="groupFormRules"
+          @keypress.enter.native="saveGroup(groupForm)"
+        >
+          <el-form-item
+            :label="$t('commons.name')"
+            prop="name"
+          >
+            <el-input v-model="groupForm.name"/>
           </el-form-item>
         </el-form>
-        <div slot="footer" class="dialog-footer">
-          <el-button size="mini" @click="close()">{{ $t('panel.cancel') }}</el-button>
-          <el-button type="primary" size="mini" @click="saveGroup(groupForm)">{{ $t('panel.confirm') }}
+        <div
+          slot="footer"
+          class="dialog-footer"
+        >
+          <el-button
+            size="mini"
+            @click="close()"
+          >{{
+              $t('panel.cancel')
+            }}
+          </el-button>
+          <el-button
+            type="primary"
+            size="mini"
+            @click="saveGroup(groupForm)"
+          >{{ $t('panel.confirm') }}
           </el-button>
         </div>
       </el-dialog>
@@ -190,29 +364,73 @@
         width="800px"
         class="dialog-css"
       >
-        <grant-auth v-if="authVisible" :resource-id="authResourceId" @close-grant="closeGrant" />
+        <grant-auth
+          v-if="authVisible"
+          :resource-id="authResourceId"
+          @close-grant="closeGrant"
+        />
       </el-dialog>
 
       <el-dialog
         v-dialogDrag
-        :title="linkTitle"
+        :title="$t('panel.link_share')"
         :visible.sync="linkVisible"
         width="500px"
         @closed="removeLink"
       >
-        <link-generate v-if="linkVisible" :resource-id="linkResourceId" />
+        <link-generate
+          v-if="linkVisible"
+          :resource-id="linkResourceId"
+        />
       </el-dialog>
       <!--新建仪表板dialog-->
-      <el-dialog v-dialogDrag :title="panelDialogTitle" :visible.sync="editPanel.visible" :show-close="true" width="600px">
-        <edit-panel v-if="editPanel.visible" :edit-panel-out="editPanel" @closeEditPanelDialog="closeEditPanelDialog" @newPanelSave="newPanelSave" />
+      <el-dialog
+        v-dialogDrag
+        :title="panelDialogTitle"
+        :visible.sync="editPanel.visible"
+        :show-close="true"
+        width="600px"
+      >
+        <edit-panel
+          v-if="editPanel.visible"
+          :edit-panel-out="editPanel"
+          @closeEditPanelDialog="closeEditPanelDialog"
+          @newPanelSave="newPanelSave"
+        />
       </el-dialog>
 
       <!--移动-->
-      <el-dialog v-if="moveGroup" v-dialogDrag :title="moveDialogTitle" :visible="moveGroup" :show-close="false" width="30%" class="dialog-css">
-        <tree-selector :item="moveInfo" :t-data="tGroupData" @targetGroup="targetGroup" />
-        <div slot="footer" class="dialog-footer">
-          <el-button size="mini" @click="closeMoveGroup()">{{ $t('dataset.cancel') }}</el-button>
-          <el-button :disabled="groupMoveConfirmDisabled" type="primary" size="mini" @click="saveMoveGroup(tGroup)">{{ $t('dataset.confirm') }}
+      <el-dialog
+        v-if="moveGroup"
+        v-dialogDrag
+        :title="moveDialogTitle"
+        :visible="moveGroup"
+        :show-close="false"
+        width="30%"
+        class="dialog-css"
+      >
+        <tree-selector
+          :item="moveInfo"
+          :t-data="tGroupData"
+          @targetGroup="targetGroup"
+        />
+        <div
+          slot="footer"
+          class="dialog-footer"
+        >
+          <el-button
+            size="mini"
+            @click="closeMoveGroup()"
+          >{{
+              $t('dataset.cancel')
+            }}
+          </el-button>
+          <el-button
+            :disabled="groupMoveConfirmDisabled"
+            type="primary"
+            size="mini"
+            @click="saveMoveGroup(tGroup)"
+          >{{ $t('dataset.confirm') }}
           </el-button>
         </div>
       </el-dialog>
@@ -221,27 +439,39 @@
 </template>
 
 <script>
-import GrantAuth from '../GrantAuth'
+import GrantAuth from '../grantAuth'
 import LinkGenerate from '@/views/link/generate'
 import { uuid } from 'vue-uuid'
 import bus from '@/utils/bus'
-import EditPanel from './EditPanel'
-import { addGroup, delGroup, groupTree, defaultTree, findOne, panelSave } from '@/api/panel/panel'
-import { getPanelAllLinkageInfo } from '@/api/panel/linkage'
-import { queryPanelJumpInfo } from '@/api/panel/linkJump'
-import { mapState } from 'vuex'
+import EditPanel from './editPanel'
 import {
-  DEFAULT_COMMON_CANVAS_STYLE_STRING
-} from '@/views/panel/panel'
-import TreeSelector from '@/components/TreeSelector'
+  addGroup,
+  defaultTree,
+  delGroup,
+  groupTree,
+  initPanelData,
+  panelToTop,
+  panelUpdate,
+  viewPanelLog
+} from '@/api/panel/panel'
+import { mapState } from 'vuex'
+import { DEFAULT_COMMON_CANVAS_STYLE_STRING } from '@/views/panel/panel'
+import TreeSelector from '@/components/treeSelector'
 import { queryAuthModel } from '@/api/authModel/authModel'
-import { panelInit } from '@/components/canvas/utils/utils'
+import msgCfm from '@/components/msgCfm/index'
+import { updateCacheTree } from '@/components/canvas/utils/utils'
 
 export default {
   name: 'PanelList',
   components: { GrantAuth, LinkGenerate, EditPanel, TreeSelector },
+  mixins: [msgCfm],
   data() {
     return {
+      lastActiveDefaultPanelId: null, // 激活的节点 在这个节点下面动态放置子节点
+      responseSource: 'panelQuery',
+      defaultExpansion: false,
+      clearLocalStorage: ['dataset-tree'],
+      historyRequestId: null,
       lastActiveNode: null, // 激活的节点 在这个节点下面动态放置子节点
       lastActiveNodeData: null,
       activeTree: 'self', // 识别当前操作的树类型self 是仪表板列表树 system 是默认仪表板树
@@ -285,7 +515,6 @@ export default {
         node: {},
         optType: 'newFirstFolder'
       },
-      linkTitle: '链接分享',
       linkVisible: false,
       linkResourceId: null,
       authTitle: null,
@@ -314,15 +543,27 @@ export default {
       },
       groupFormRules: {
         name: [
-          { required: true, message: this.$t('commons.input_content'), trigger: 'blur' }
+          {
+            required: true,
+            message: this.$t('commons.input_content'),
+            trigger: 'blur'
+          }
         ]
       },
       tableFormRules: {
         name: [
-          { required: true, message: this.$t('commons.input_content'), trigger: 'blur' }
+          {
+            required: true,
+            message: this.$t('commons.input_content'),
+            trigger: 'blur'
+          }
         ],
         mode: [
-          { required: true, message: this.$t('commons.input_content'), trigger: 'blur' }
+          {
+            required: true,
+            message: this.$t('commons.input_content'),
+            trigger: 'blur'
+          }
         ]
       },
       moveGroup: false,
@@ -338,24 +579,24 @@ export default {
         all: this.$t('commons.all'),
         folder: this.$t('commons.folder')
       },
-      initLocalStorage: [
-        'chart',
-        'dataset'
-      ]
+      initLocalStorage: ['dataset']
     }
   },
   computed: {
     panelDialogTitle() {
       return this.editPanel.titlePre + this.editPanel.titleSuf
     },
-    ...mapState([
-      'nowPanelTrackInfo'
-    ])
+    expandedData() {
+      return (!this.defaultExpansion && this.defaultData && this.defaultData.length > 3)
+        ? this.defaultData.slice(0, 3)
+        : this.defaultData
+    },
+    ...mapState(['nowPanelTrackInfo'])
   },
   watch: {
     // 切换展示页面后 重新点击一下当前节点
     '$store.state.panel.mainActiveName': function(newVal, oldVal) {
-      if (newVal === 'PanelMain' && this.lastActiveNode && this.lastActiveNodeData) {
+      if (newVal === 'PanelMain' && this.lastActiveNodeData) {
         this.activeNodeAndClickOnly(this.lastActiveNodeData)
       }
     },
@@ -370,20 +611,55 @@ export default {
       this.$refs.panel_list_tree.filter(this.filterText)
     }
   },
+  beforeDestroy() {
+  },
   mounted() {
-    this.$store.commit('setComponentData', [])
-    this.$store.commit('setCanvasStyle', DEFAULT_COMMON_CANVAS_STYLE_STRING)
-    this.defaultTree(true)
-    this.tree(true)
+    this.clearCanvas()
     this.initCache()
+    const routerParam = this.$router.currentRoute.params
+    if (routerParam && routerParam.responseSource === 'appApply') {
+      this.responseSource = routerParam.responseSource
+      this.lastActiveNode = routerParam
+      this.tree()
+      this.defaultTree(true, false)
+    } else if (
+      routerParam &&
+      routerParam.nodeType === 'panel' &&
+      this.historyRequestId !== routerParam.requestId
+    ) {
+      this.historyRequestId = routerParam.requestId
+      this.tree()
+      this.defaultTree(true, false)
+      this.edit(routerParam, null)
+    } else {
+      this.defaultTree(true, true)
+      this.tree(true)
+    }
   },
   methods: {
+    activeLastNode() {
+      this.$nextTick(() => {
+        document.querySelector('.is-current').firstChild.click()
+      })
+    },
+    toTop(data, node) {
+      panelToTop(data.id).then(() => {
+        this.defaultTree()
+      })
+    },
+    fromAppActive() {
+      this.activeNodeAndClickOnly(this.lastActiveNode)
+      this.clearLocalStorage.forEach((item) => {
+        localStorage.removeItem(item)
+      })
+      this.responseSource = 'panelQuery'
+    },
     initCache() {
       // 初始化时提前加载视图和数据集的缓存
-      this.initLocalStorage.forEach(item => {
+      this.initLocalStorage.forEach((item) => {
         if (!localStorage.getItem(item + '-tree')) {
-          queryAuthModel({ modelType: item }, false).then(res => {
-            localStorage.setItem(item + '-tree', JSON.stringify(res.data))
+          queryAuthModel({ modelType: item }, false).then((res) => {
+            localStorage.setItem(item + '-tree', JSON.stringify(res.data || []))
           })
         }
       })
@@ -391,22 +667,25 @@ export default {
     closeEditPanelDialog(panelInfo) {
       this.editPanel.visible = false
       if (panelInfo) {
-        this.defaultTree()
-        this.tree()
+        if (this.editPanel.optType === 'toDefaultPanel') {
+          this.defaultTree(false)
+        }
+        updateCacheTree(this.editPanel.optType, 'panel-main-tree', panelInfo, this.tData)
+        if (this.editPanel.optType === 'rename' && panelInfo.id === this.$store.state.panel.panelInfo.id) {
+          this.$store.state.panel.panelInfo.name = panelInfo.name
+        }
         // 默认展开 同时点击 新增的节点
-        if (panelInfo && panelInfo.panelType === 'self' && this.lastActiveNodeData.id) {
+        if (
+          panelInfo &&
+          panelInfo.panelType === 'self' &&
+          this.lastActiveNodeData.id
+        ) {
           if (this.editPanel.optType === 'rename') {
             this.lastActiveNodeData.name = panelInfo.name
             return
           }
           // 复制后的仪表板 放在父节点下面
-          if (this.editPanel.optType === 'copy') {
-            this.lastActiveNode.parent.data.children.push(panelInfo)
-          } else {
-            if (!this.lastActiveNodeData.children) {
-              this.$set(this.lastActiveNodeData, 'children', [])
-            }
-            this.lastActiveNodeData.children.push(panelInfo)
+          if (this.editPanel.optType !== 'copy') {
             this.lastActiveNode.expanded = true
           }
           this.activeNodeAndClick(panelInfo)
@@ -447,7 +726,6 @@ export default {
             titlePre: this.$t('commons.edit'),
             panelInfo: {
               id: param.data.id,
-              pid: param.data.pid,
               name: param.data.name,
               nodeType: param.type
             }
@@ -457,6 +735,7 @@ export default {
           this.editPanel = {
             visible: true,
             titlePre: this.$t('panel.to_default'),
+            optType: 'toDefaultPanel',
             panelInfo: {
               id: param.data.id,
               name: param.data.name,
@@ -490,10 +769,10 @@ export default {
     },
     beforeClickEdit(type, optType, data, node) {
       return {
-        'type': type,
-        'data': data,
-        'node': node,
-        'optType': optType
+        type: type,
+        data: data,
+        node: node,
+        optType: optType
       }
     },
 
@@ -524,10 +803,10 @@ export default {
 
     beforeClickMore(optType, data, node) {
       return {
-        'type': data.nodeType,
-        'data': data,
-        'node': node,
-        'optType': optType
+        type: data.nodeType,
+        data: data,
+        node: node,
+        optType: optType
       }
     },
 
@@ -548,7 +827,7 @@ export default {
     saveGroup(group) {
       this.$refs['groupForm'].validate((valid) => {
         if (valid) {
-          addGroup(group).then(res => {
+          addGroup(group).then((res) => {
             this.close()
             this.$message({
               message: this.$t('commons.save_success'),
@@ -556,7 +835,7 @@ export default {
               showClose: true
             })
             this.tree()
-            this.defaultTree()
+            this.defaultTree(false)
           })
         } else {
           this.$message({
@@ -570,23 +849,23 @@ export default {
     },
 
     delete(data) {
-      this.$confirm(this.$t('panel.confirm_delete'), this.$t('panel.tips'), {
-        confirmButtonText: this.$t('panel.confirm'),
-        cancelButtonText: this.$t('panel.cancel'),
-        type: 'warning'
-      }).then(() => {
-        delGroup(data.id).then(response => {
-          this.$message({
-            type: 'success',
-            message: this.$t('panel.delete_success'),
-            showClose: true
+      const params = {
+        title: data.nodeType === 'folder'?'commons.delete_this_folder':'commons.delete_this_dashboard',
+        type: 'danger',
+        cb: () => {
+          delGroup(data.id).then((response) => {
+            this.$message({
+              type: 'success',
+              message: this.$t('panel.delete_success'),
+              showClose: true
+            })
+            this.clearCanvas()
+            updateCacheTree('delete', 'panel-main-tree', data.id, this.tData)
+            this.defaultTree(false)
           })
-          this.clearCanvas()
-          this.tree()
-          this.defaultTree()
-        })
-      }).catch(() => {
-      })
+        }
+      }
+      this.handlerConfirm(params, this.$t('commons.delete'))
     },
 
     clearCanvas() {
@@ -613,66 +892,77 @@ export default {
     },
     tree(cache = false) {
       const modelInfo = localStorage.getItem('panel-main-tree')
-      const userCache = (modelInfo && cache)
+      const userCache = modelInfo && cache
       if (userCache) {
         this.tData = JSON.parse(modelInfo)
       }
-      groupTree(this.groupForm, !userCache).then(res => {
-        localStorage.setItem('panel-main-tree', JSON.stringify(res.data))
+      groupTree(this.groupForm, !userCache).then((res) => {
+        localStorage.setItem('panel-main-tree', JSON.stringify(res.data || []))
         if (!userCache) {
-          this.tData = res.data
+          this.tData = res.data || []
+        }
+        if (this.responseSource === 'appApply') {
+          this.fromAppActive()
+        }
+        if (this.filterText) {
+          this.$nextTick(() => {
+            this.$refs.panel_list_tree.filter(this.filterText)
+          })
         }
       })
     },
-    defaultTree(cache = false) {
+    defaultTree(cache = false, showFirst = false) {
       const requestInfo = {
         panelType: 'system'
       }
       const modelInfo = localStorage.getItem('panel-default-tree')
-      const userCache = (modelInfo && cache)
+      const userCache = modelInfo && cache
 
       if (userCache) {
         this.defaultData = JSON.parse(modelInfo)
+        if (showFirst && this.defaultData && this.defaultData.length > 0) {
+          this.activeDefaultNodeAndClickOnly(this.defaultData[0].id)
+        }
       }
-      defaultTree(requestInfo, false).then(res => {
+      const currentKey = this.$refs.default_panel_tree.getCurrentKey()
+      defaultTree(requestInfo, false).then((res) => {
         localStorage.setItem('panel-default-tree', JSON.stringify(res.data))
         if (!userCache) {
-          this.defaultData = res.data
+          this.defaultData = res.data || []
+          if (showFirst && this.defaultData && this.defaultData.length > 0) {
+            this.activeDefaultNodeAndClickOnly(this.defaultData[0].id)
+          }
+        }
+        if (this.filterText) {
+          this.$nextTick(() => {
+            this.$refs.default_panel_tree.filter(this.filterText)
+          })
+        }
+        if (currentKey) {
+          this.$nextTick(() => {
+            this.$refs.default_panel_tree.setCurrentKey(currentKey)
+          })
         }
       })
     },
 
     nodeClick(data, node) {
+      if (data.panelType === 'self') {
+        this.$refs.default_panel_tree.setCurrentKey(null)
+      } else {
+        this.$refs.panel_list_tree.setCurrentKey(null)
+      }
       this.lastActiveNode = node
       this.lastActiveNodeData = data
       this.activeTree = data.panelType
       if (data.nodeType === 'panel') {
         // 清理pc布局缓存
         this.$store.commit('setComponentDataCache', null)
-        // 加载视图数据
-        findOne(data.id).then(response => {
-          const componentDatas = JSON.parse(response.data.panelData)
-          panelInit(componentDatas)
-          this.$store.commit('setComponentData', this.resetID(componentDatas))
-          const temp = JSON.parse(response.data.panelStyle)
-          temp.refreshTime = (temp.refreshTime || 5)
-          temp.refreshViewLoading = (temp.refreshViewLoading || false)
-          temp.refreshUnit = (temp.refreshUnit || 'minute')
-
-          this.$store.commit('setCanvasStyle', temp)
-          this.$store.dispatch('panel/setPanelInfo', data)
-
-          // 刷新联动信息
-          getPanelAllLinkageInfo(data.id).then(rsp => {
-            this.$store.commit('setNowPanelTrackInfo', rsp.data)
+        initPanelData(data.id, false, function(response) {
+          viewPanelLog({ panelId: data.id }).then((res) => {
+            bus.$emit('set-panel-show-type', 0)
+            data.mobileLayout = response.data.mobileLayout
           })
-
-          // 刷新跳转信息
-          queryPanelJumpInfo(data.id).then(rsp => {
-            this.$store.commit('setNowPanelJumpInfo', rsp.data)
-          })
-
-          bus.$emit('set-panel-show-type', 0)
         })
       }
     },
@@ -693,7 +983,7 @@ export default {
     },
     beforeClickAddData(type) {
       return {
-        'type': type
+        type: type
       }
     },
 
@@ -709,14 +999,20 @@ export default {
     edit(data, node) {
       this.lastActiveNodeData = data
       this.lastActiveNode = node
-      // 清空当前缓存,快照
-      this.$store.commit('refreshSnapshot')
       this.$store.commit('setComponentData', [])
       this.$store.commit('setCanvasStyle', DEFAULT_COMMON_CANVAS_STYLE_STRING)
-      // 清空临时画布数据
-      this.$store.dispatch('panel/setComponentDataTemp', null)
-      this.$store.dispatch('panel/setCanvasStyleDataTemp', null)
-      this.$store.dispatch('panel/setPanelInfo', data)
+      this.$store.dispatch('panel/setPanelInfo', {
+        id: data.id,
+        name: data.name,
+        privileges: data.privileges,
+        sourcePanelName: data.sourcePanelName,
+        status: data.status,
+        createBy: data.createBy,
+        createTime: data.createTime,
+        updateBy: data.updateBy,
+        updateTime: data.updateTime,
+        watermarkOpen: data.watermarkOpen
+      })
       bus.$emit('PanelSwitchComponent', { name: 'PanelEdit' })
     },
     link(data) {
@@ -729,28 +1025,28 @@ export default {
     },
     resetID(data) {
       if (data) {
-        data.forEach(item => {
+        data.forEach((item) => {
           item.type !== 'custom' && (item.id = uuid.v1())
         })
       }
       return data
     },
     newPanelSave(id) {
-
     },
     // 激活并点击当前节点
     activeNodeAndClick(panelInfo) {
       if (panelInfo) {
-        this.$nextTick(() => {
+        const _this = this
+        _this.$nextTick(() => {
           // 延迟设置CurrentKey
-          this.$refs.panel_list_tree.setCurrentKey(panelInfo.id)
+          _this.$refs.panel_list_tree.setCurrentKey(panelInfo.id)
           // 去除default_tree 的影响
-          this.$refs.default_panel_tree.setCurrentKey(null)
-          this.$nextTick(() => {
+          _this.$refs.default_panel_tree.setCurrentKey(null)
+          _this.$nextTick(() => {
             document.querySelector('.is-current').firstChild.click()
             // 如果是仪表板列表的仪表板 直接进入编辑界面
-            if (panelInfo.nodeType === 'panel') {
-              this.edit(this.lastActiveNodeData, this.lastActiveNode)
+            if (panelInfo.nodeType === 'panel' && this.editPanel.optType !== 'copy') {
+              _this.edit(this.lastActiveNodeData, this.lastActiveNode)
             }
           })
         })
@@ -759,12 +1055,30 @@ export default {
     // 激活当前节点
     activeNodeAndClickOnly(panelInfo) {
       if (panelInfo) {
-        this.$nextTick(() => {
+        const _this = this
+        _this.$nextTick(() => {
           // 延迟设置CurrentKey
-          this.$refs.panel_list_tree.setCurrentKey(panelInfo.id)
+          _this.$refs.panel_list_tree.setCurrentKey(panelInfo.id)
           // 去除default_tree 的影响
-          this.$refs.default_panel_tree.setCurrentKey(null)
-          this.$nextTick(() => {
+          _this.$refs.default_panel_tree.setCurrentKey(null)
+          if (panelInfo.parents) {
+            _this.expandedArray = panelInfo.parents
+          }
+          _this.$nextTick(() => {
+            document.querySelector('.is-current').firstChild.click()
+          })
+        })
+      }
+    },
+    // 激活当前默认仪表板节点节点
+    activeDefaultNodeAndClickOnly(panelId) {
+      if (panelId) {
+        const _this = this
+        _this.$nextTick(() => {
+          _this.$refs.panel_list_tree.setCurrentKey(null)
+          // 延迟设置CurrentKey
+          _this.$refs.default_panel_tree.setCurrentKey(panelId)
+          _this.$nextTick(() => {
             document.querySelector('.is-current').firstChild.click()
           })
         })
@@ -773,22 +1087,24 @@ export default {
     moveTo(data) {
       const _this = this
       this.moveInfo = data
-      this.moveDialogTitle = this.$t('dataset.m1') + (data.name.length > 10 ? (data.name.substr(0, 10) + '...') : data.name) + this.$t('dataset.m2')
+      this.moveDialogTitle =
+        this.$t('dataset.m1') +
+        (data.name.length > 10 ? data.name.substr(0, 10) + '...' : data.name) +
+        this.$t('dataset.m2')
       const queryInfo = JSON.parse(JSON.stringify(this.groupForm))
       queryInfo['nodeType'] = 'folder'
-      groupTree(queryInfo).then(res => {
+      groupTree(queryInfo).then((res) => {
         if (data.nodeType === 'folder') {
           _this.tGroupData = [
             {
               id: 'panel_list',
               name: _this.$t('panel.panel_list'),
               label: _this.$t('panel.panel_list'),
-              children: res.data
+              children: res.data || []
             }
           ]
-          // console.log('tGroupData=>' + JSON.stringify(_this.tGroupData))
         } else {
-          _this.tGroupData = res.data
+          _this.tGroupData = res.data || []
         }
         _this.moveGroup = true
       })
@@ -800,8 +1116,8 @@ export default {
     saveMoveGroup() {
       this.moveInfo.pid = this.tGroup.id
       this.moveInfo['optType'] = 'move'
-      panelSave(this.moveInfo).then(response => {
-        this.tree()
+      panelUpdate(this.moveInfo).then((response) => {
+        updateCacheTree('move', 'panel-main-tree', response.data, this.tData)
         this.closeMoveGroup()
       })
     },
@@ -811,8 +1127,9 @@ export default {
     },
     filterNode(value, data) {
       if (!value) return true
+      const result = data.label.toLowerCase().indexOf(value.toLowerCase()) !== -1
       if (this.searchType === 'folder') {
-        if (data.nodeType === 'folder' && data.label.indexOf(value) !== -1) {
+        if (data.nodeType === 'folder' && result) {
           this.searchPids.push(data.id)
           return true
         }
@@ -823,7 +1140,7 @@ export default {
           return true
         }
       } else {
-        return data.label.indexOf(value) !== -1
+        return result
       }
       return false
     },
@@ -831,55 +1148,92 @@ export default {
       this.searchType = searchTypeInfo
     },
     editFromPanelViewShow() {
-      this.edit(this.lastActiveNodeData, this.lastActiveNode)
+      this.$store.commit('setComponentData', [])
+      this.$store.commit('setCanvasStyle', DEFAULT_COMMON_CANVAS_STYLE_STRING)
+      bus.$emit('PanelSwitchComponent', { name: 'PanelEdit' })
+    },
+    editPanelBashInfo(params) {
+      if (params.operation === 'status') {
+        this.lastActiveNodeData.status = params.value
+      }
     }
   }
 }
 </script>
 
-<style lang='scss' scoped>
-  .header-title {
-    font-size: 14px;
-    flex: 1;
-    color: var(--TextPrimary, #606266);
-    font-weight: bold;
-    display: block;
-    height: 100%;
-    /*line-height: 36px;*/
-  }
+<style lang="scss" scoped>
+.default-expansion {
+  height: 40px;
+  width: 232px;
+  cursor: pointer;
+  margin: 0;
+  font-family: PingFang SC;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--deTextSecondary, #646a73);
+  padding-left: 22px;
+  display: flex;
+  align-items: center;
 
-  .custom-tree-node {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 14px;
-    padding-right:8px;
+  i {
+    margin-left: 5px;
   }
+}
 
-  .custom-tree-node-list {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 14px;
-    padding:0 8px;
-  }
+.main-area-input {
+  ::v-deep.el-input-group__append {
+    width: 70px;
+    background: transparent;
 
-  .dialog-css>>>.el-dialog__body {
-    padding: 15px 20px;
+    .el-input__inner {
+      padding-left: 12px;
+    }
   }
-  .dialog-css >>>.el-dialog__body {
-    padding: 10px 20px 20px;
-  }
+}
 
-  .father .child {
-    /*display: none;*/
-    visibility: hidden;
-  }
-  .father:hover .child {
-    /*display: inline;*/
-    visibility: visible;
-  }
+.header-title {
+  font-size: 14px;
+  flex: 1;
+  color: var(--TextPrimary, #606266);
+  font-weight: bold;
+  display: block;
+  height: 100%;
+  /*line-height: 36px;*/
+}
 
+.custom-tree-node {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  padding-right: 8px;
+}
+
+.custom-tree-node-list {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  padding: 0 8px;
+}
+
+.dialog-css ::v-deep .el-dialog__body {
+  padding: 15px 20px;
+}
+
+.dialog-css ::v-deep .el-dialog__body {
+  padding: 10px 20px 20px;
+}
+
+.father .child {
+  /*display: none;*/
+  visibility: hidden;
+}
+
+.father:hover .child {
+  /*display: inline;*/
+  visibility: visible;
+}
 </style>

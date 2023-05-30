@@ -17,7 +17,7 @@ export const $confirm = (message, callback, options = {}) => {
   const title = i18n.t('commons.message_box.confirm')
   MessageBox.confirm(message, title, defaultOptions).then(() => {
     callback()
-  })
+  }).catch(() => {})
 }
 
 export const $success = (message, duration) => {
@@ -47,12 +47,13 @@ export const $warning = (message, duration) => {
   })
 }
 
-export const $error = (message, duration) => {
+export const $error = (message, duration, useHtml) => {
   Message.error({
     message: message,
     type: 'error',
     showClose: true,
-    duration: duration || 10000
+    duration: duration || 10000,
+    dangerouslyUseHTMLString: useHtml
   })
 }
 

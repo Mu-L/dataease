@@ -1,6 +1,6 @@
 package io.dataease.dto.dataset;
 
-import io.dataease.base.domain.DatasetTable;
+import io.dataease.plugins.common.base.domain.DatasetTable;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,4 +22,6 @@ public class DataSetTableDTO extends DatasetTable {
     private Boolean isLeaf;
     @ApiModelProperty("父ID")
     private String pid;
+    @ApiModelProperty("创建者姓名")
+    private String creatorName;
 }

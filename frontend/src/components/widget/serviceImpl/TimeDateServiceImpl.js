@@ -1,7 +1,9 @@
 import {
   WidgetService
 } from '../service/WidgetService'
-
+import {
+  timeSection
+} from '@/utils'
 const leftPanel = {
   icon: 'iconfont icon-ri',
   label: 'dedate.label',
@@ -15,6 +17,7 @@ const dialogPanel = {
       placeholder: 'dedate.placeholder',
       viewIds: [],
       fieldId: '',
+      parameters: [],
       dragItems: [],
       default: {
         isDynamic: false,
@@ -27,6 +30,7 @@ const dialogPanel = {
           { value: 0, text: 'dynamic_time.today' },
           { value: 1, text: 'dynamic_time.yesterday' },
           { value: 2, text: 'dynamic_time.firstOfMonth' },
+          { value: 4, text: 'dynamic_time.firstOfYear' },
           { value: 3, text: 'dynamic_time.custom' }
         ],
         custom: {
@@ -38,13 +42,18 @@ const dialogPanel = {
           ],
           limits: [1, 12]
         }
-      }
+      },
+      showTime: false,
+      accuracy: 'HH:mm'
+
     },
     value: '',
     manualModify: false
   },
   defaultClass: 'time-filter',
-  component: 'de-date'
+  component: 'de-date',
+  miniSizex: 1,
+  miniSizey: 1
 }
 const drawPanel = {
   type: 'custom',
@@ -75,7 +84,6 @@ class TimeDateServiceImpl extends WidgetService {
   initLeftPanel() {
     const value = JSON.parse(JSON.stringify(leftPanel))
     return value
-    // console.log('this is first initWidget')
   }
 
   initFilterDialog() {
@@ -95,6 +103,9 @@ class TimeDateServiceImpl extends WidgetService {
   defaultSetting() {
     return dialogPanel.options.attrs.default
   }
+  customValue() {
+    return 3
+  }
   dynamicDateFormNow(element) {
     if (element.options.attrs.default === null || typeof element.options.attrs.default === 'undefined' || !element.options.attrs.default.isDynamic) return null
 
@@ -112,6 +123,11 @@ class TimeDateServiceImpl extends WidgetService {
       const nowMonth = now.getMonth()
       var nowYear = now.getFullYear()
       return new Date(nowYear, nowMonth, 1).getTime()
+    }
+    if (element.options.attrs.default.dkey === 4) {
+      const now = new Date()
+      const nowYear = now.getFullYear()
+      return new Date(nowYear, 0, 1).getTime()
     }
 
     if (element.options.attrs.default.dkey === 3) {
@@ -150,6 +166,76 @@ class TimeDateServiceImpl extends WidgetService {
         return new Date(dynamicSuffix === 'before' ? (nowYear - dynamicPrefix) : (nowYear + dynamicPrefix), nowMonth, nowDate).getTime()
       }
     }
+  }
+  getParam(element) {
+    let timeArr = []
+    if (element.options.attrs.default && element.options.attrs.default.isDynamic) {
+      let value = this.dynamicDateFormNow(element)
+      value = this.formatFilterValue(value)
+      timeArr = this.formatValues(value, element)
+    } else {
+      let value = this.fillValueDerfault(element)
+      value = this.formatFilterValue(value)
+      timeArr = this.formatValues(value, element)
+    }
+    const param = {
+      component: element,
+      value: timeArr,
+      operator: 'between'
+    }
+    return param
+  }
+  fillValueDerfault(element) {
+    const defaultV = element.options.value === null ? '' : element.options.value.toString()
+    if (element.options.attrs.type === 'daterange') {
+      if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV ===
+        '[object Object]') {
+        return []
+      }
+      return defaultV.split(',').map(item => parseFloat(item))
+    } else {
+      if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV ===
+        '[object Object]') {
+        return null
+      }
+      return parseFloat(defaultV.split(',')[0])
+    }
+  }
+  formatFilterValue(values) {
+    if (values === null) return []
+    if (Array.isArray(values)) return values
+    return [values]
+  }
+  formatValues(values, element) {
+    if (!values || values.length === 0) {
+      return []
+    }
+    if (element.options.attrs.type === 'daterange') {
+      if (values.length !== 2) {
+        return null
+      }
+      let start = values[0]
+      let end = values[1]
+      start = timeSection(start, 'date')[0]
+      end = timeSection(end, 'date')[1]
+      const results = [start, end]
+      return results
+    } else {
+      const value = values[0]
+      const componentType = element.options.attrs.showTime ? 'datetime' : 'date'
+      let labelFormat = 'yyyy-MM-dd'
+      if (element.options.attrs.showTime && element.options.attrs.accuracy) {
+        labelFormat = labelFormat + ' ' + element.options.attrs.accuracy
+      }
+
+      return timeSection(parseFloat(value), componentType || element.options.attrs.type, labelFormat)
+    }
+  }
+  isTimeWidget() {
+    return true
+  }
+  isParamWidget() {
+    return true
   }
 }
 const timeDateServiceImpl = new TimeDateServiceImpl({

@@ -50,6 +50,15 @@ export function switchEnablePwd(data) {
   })
 }
 
+export function viewLinkLog(data) {
+  return request({
+    url: 'api/link/viewLog',
+    method: 'post',
+    loading: true,
+    data
+  })
+}
+
 export function loadGenerate(resourceId) {
   return request({
     url: 'api/link/currentGenerate/' + resourceId,
@@ -57,16 +66,16 @@ export function loadGenerate(resourceId) {
   })
 }
 
-export function loadResource(resourceId) {
+export function loadResource(resourceId,userId) {
   return request({
-    url: 'api/link/resourceDetail/' + resourceId,
+    url: 'api/link/resourceDetail/' + resourceId+'/'+ userId,
     method: 'get'
   })
 }
 
-export function viewInfo(id, data) {
+export function viewInfo(id, panelId, data) {
   return request({
-    url: 'api/link/viewDetail/' + id,
+    url: 'api/link/viewDetail/' + id + '/' + panelId,
     method: 'post',
     hideMsg: true,
     data

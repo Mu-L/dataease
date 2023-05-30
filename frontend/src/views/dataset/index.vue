@@ -1,12 +1,22 @@
 <template>
-  <de-container v-loading="$store.getters.loadingMap[$store.getters.currentPath]">
-
-    <de-aside-container>
-      <group :save-status="saveStatus" @switchComponent="switchComponent" />
+  <de-container
+    v-loading="$store.getters.loadingMap[$store.getters.currentPath]"
+  >
+    <de-aside-container type="dataset">
+      <group
+        :current-node-id="currentNodeId"
+        :save-status="saveStatus"
+        @switchComponent="switchComponent"
+      />
     </de-aside-container>
-
     <de-main-container>
-      <component :is="component" ref="dynamic_component" :param="param" @switchComponent="switchComponent" @saveSuccess="saveSuccess" />
+      <component
+        :is="component"
+        ref="dynamic_component"
+        :param="param"
+        @switchComponent="switchComponent"
+        @saveSuccess="saveSuccess"
+      />
     </de-main-container>
   </de-container>
 </template>
@@ -17,24 +27,31 @@ import DeContainer from '@/components/dataease/DeContainer'
 import DeAsideContainer from '@/components/dataease/DeAsideContainer'
 import Group from './group/Group'
 
-import DataHome from './data/DataHome'
+import noSelect from './data/NoSelect'
 import ViewTable from './data/ViewTable'
-import AddDB from './add/AddDB'
-import AddSQL from './add/AddSQL'
-import AddExcel from './add/AddExcel'
-import AddCustom from './add/AddCustom'
-import AddUnion from '@/views/dataset/add/AddUnion'
 import FieldEdit from './data/FieldEdit'
 import { removeClass } from '@/utils'
 import { checkCustomDs } from '@/api/dataset/dataset'
 export default {
   name: 'DataSet',
-  components: { DeMainContainer, DeContainer, DeAsideContainer, Group, DataHome, ViewTable, AddDB, AddSQL, AddExcel, AddCustom },
+  components: {
+    DeMainContainer,
+    DeContainer,
+    DeAsideContainer,
+    Group,
+    noSelect,
+    ViewTable
+  },
   data() {
     return {
-      component: DataHome,
+      component: noSelect,
       param: {},
       saveStatus: null
+    }
+  },
+  computed: {
+    currentNodeId() {
+      return this.param?.id
     }
   },
   mounted() {
@@ -48,7 +65,8 @@ export default {
   },
   methods: {
     initDs() {
-      checkCustomDs().then(res => {
+      localStorage.setItem('reloadDsData', 'false')
+      checkCustomDs().then((res) => {
         this.$store.dispatch('dataset/setHideCustomDs', res.data)
       })
     },
@@ -58,26 +76,11 @@ export default {
         case 'ViewTable':
           this.component = ViewTable
           break
-        case 'AddDB':
-          this.component = AddDB
-          break
-        case 'AddSQL':
-          this.component = AddSQL
-          break
-        case 'AddExcel':
-          this.component = AddExcel
-          break
-        case 'AddCustom':
-          this.component = AddCustom
-          break
-        case 'AddUnion':
-          this.component = AddUnion
-          break
         case 'FieldEdit':
           this.component = FieldEdit
           break
         default:
-          this.component = DataHome
+          this.component = noSelect
           break
       }
     },
@@ -90,14 +93,19 @@ export default {
       if (routerParam !== null && routerParam.msgNotification) {
         const panelShareTypeIds = [4, 5, 6]
         // 说明是从消息通知跳转过来的
-        if (panelShareTypeIds.includes(routerParam.msgType)) { // 是数据集同步
+        if (panelShareTypeIds.includes(routerParam.msgType)) {
+          // 是数据集同步
           if (routerParam.sourceParam) {
             try {
               const msgParam = JSON.parse(routerParam.sourceParam)
               this.param = msgParam.tableId
               this.component = ViewTable
               this.$nextTick(() => {
-                this.$refs.dynamic_component && this.$refs.dynamic_component.msg2Current && this.$refs.dynamic_component.msg2Current(routerParam.sourceParam)
+                this.$refs.dynamic_component &&
+                  this.$refs.dynamic_component.msg2Current &&
+                  this.$refs.dynamic_component.msg2Current(
+                    routerParam.sourceParam
+                  )
               })
             } catch (error) {
               console.error(error)
@@ -111,16 +119,15 @@ export default {
 </script>
 
 <style scoped>
-  .ms-aside-container {
-    height: calc(100vh - 56px);
-    padding: 0 0;
-    min-width: 260px;
-    max-width: 460px;
-  }
+.ms-aside-container {
+  height: calc(100vh - 56px);
+  padding: 0 0;
+  min-width: 260px;
+  max-width: 460px;
+}
 
-  .ms-main-container {
-    height: calc(100vh - 56px);
-    padding: 10px 15px 0 15px;
-  }
-
+.ms-main-container {
+  height: calc(100vh - 56px);
+  padding: 10px 15px 0 15px;
+}
 </style>

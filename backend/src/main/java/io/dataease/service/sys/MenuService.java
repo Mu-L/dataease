@@ -1,11 +1,5 @@
 package io.dataease.service.sys;
 
-
-import io.dataease.base.domain.SysMenu;
-import io.dataease.base.domain.SysMenuExample;
-import io.dataease.base.mapper.SysMenuMapper;
-import io.dataease.base.mapper.ext.ExtMenuMapper;
-import io.dataease.base.mapper.ext.ExtSysMenuMapper;
 import io.dataease.commons.utils.BeanUtils;
 import io.dataease.controller.sys.base.BaseGridRequest;
 import io.dataease.controller.sys.request.MenuCreateRequest;
@@ -13,6 +7,11 @@ import io.dataease.controller.sys.request.MenuDeleteRequest;
 import io.dataease.controller.sys.request.SimpleTreeNode;
 import io.dataease.controller.sys.response.MenuNodeResponse;
 import io.dataease.controller.sys.response.MenuTreeNode;
+import io.dataease.ext.ExtMenuMapper;
+import io.dataease.ext.ExtSysMenuMapper;
+import io.dataease.plugins.common.base.domain.SysMenu;
+import io.dataease.plugins.common.base.domain.SysMenuExample;
+import io.dataease.plugins.common.base.mapper.SysMenuMapper;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.stereotype.Service;
@@ -114,9 +113,9 @@ public class MenuService {
         return sysMenuMapper.updateByPrimaryKeySelective(sysMenu);
     }
 
-    public List<MenuNodeResponse> childs(Long pid) {
-        Set<SysMenu> childs = getChilds(nodesByPid(pid), new HashSet());
-        List<SysMenu> menus = new ArrayList<>(childs);
+    public List<MenuNodeResponse> children(Long pid) {
+        Set<SysMenu> children = getChildren(nodesByPid(pid), new HashSet());
+        List<SysMenu> menus = new ArrayList<>(children);
         return convert(menus);
     }
 
@@ -139,12 +138,12 @@ public class MenuService {
         return roots.stream().map(node -> node.getMenuId().equals(targetRootNode.getId()) ? targetRootNode : format(node)).collect(Collectors.toList());
     }
 
-    private Set<SysMenu> getChilds(List<SysMenu> lists, Set<SysMenu> sets) {
+    private Set<SysMenu> getChildren(List<SysMenu> lists, Set<SysMenu> sets) {
         lists.forEach(menu -> {
             sets.add(menu);
             List<SysMenu> kidMenus = nodesByPid(menu.getMenuId());
             if (CollectionUtils.isNotEmpty(kidMenus)) {
-                getChilds(kidMenus, sets);
+                getChildren(kidMenus, sets);
             }
         });
         return sets;

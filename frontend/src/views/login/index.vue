@@ -1,71 +1,218 @@
 <template>
-  <div v-show="contentShow" class="login-background">
-    <div class="login-container">
-      <el-row v-loading="loading" type="flex">
-        <el-col :span="12">
-          <el-form ref="loginForm" :model="loginForm" :rules="loginRules" size="default">
-            <div class="login-logo">
-              <svg-icon v-if="!loginLogoUrl && axiosFinished" icon-class="DataEase" custom-class="login-logo-icon" />
-              <img v-if="loginLogoUrl && axiosFinished" :src="loginLogoUrl" alt="">
-            </div>
-            <div v-if="uiInfo && uiInfo['ui.loginTitle'] && uiInfo['ui.loginTitle'].paramValue" class="login-welcome">
-              {{ uiInfo['ui.loginTitle'].paramValue }}
-            </div>
-            <div v-else class="login-welcome">
-              {{ $t('login.welcome') + (uiInfo && uiInfo['ui.title'] && uiInfo['ui.title'].paramValue || ' DataEase') }}
-            </div>
-            <div class="login-form">
-              <el-form-item v-if="loginTypes.length > 1">
-                <el-radio-group v-if="loginTypes.length > 1" v-model="loginForm.loginType" @change="changeLoginType">
-                  <el-radio :label="0" size="mini">{{ $t('login.default_login') }}</el-radio>
-                  <el-radio v-if="loginTypes.includes(1)" :label="1" size="mini">LDAP</el-radio>
-                  <el-radio v-if="loginTypes.includes(2)" :label="2" size="mini">OIDC</el-radio>
-                </el-radio-group>
-              </el-form-item>
-              <el-form-item prop="username">
-                <el-input v-model="loginForm.username" placeholder="ID" autofocus />
-              </el-form-item>
-              <el-form-item prop="password">
-                <el-input
-                  v-model="loginForm.password"
-                  :placeholder="$t('login.password')"
-                  show-password
-                  maxlength="30"
-                  show-word-limit
-                  autocomplete="new-password"
-                  @keypress.enter.native="handleLogin"
-                />
-              </el-form-item>
-            </div>
-            <div class="login-btn">
-              <el-button type="primary" class="submit" size="default" @click.native.prevent="handleLogin">
-                {{ $t('commons.login') }}
-              </el-button>
-              <div v-if="uiInfo && uiInfo['ui.demo.tips'] && uiInfo['ui.demo.tips'].paramValue" class="demo-tips">
-                {{ uiInfo['ui.demo.tips'].paramValue }}
-              </div>
-            </div>
-            <div class="login-msg">
-              {{ msg }}
-            </div>
-          </el-form>
-        </el-col>
-        <el-col v-loading="!axiosFinished" :span="12">
-          <div v-if="!loginImageUrl && axiosFinished" class="login-image" />
-          <div v-if="loginImageUrl && axiosFinished" class="login-image-de" :style="{background:'url(' + loginImageUrl + ') no-repeat', 'backgroundSize':'contain'}" />
-        </el-col>
-      </el-row>
-    </div>
-    <plugin-com v-if="loginTypes.includes(2) && loginForm.loginType === 2" ref="SSOComponent" component-name="SSOComponent" />
+  <div>
 
+    <div
+      v-show="contentShow"
+      class="login-background"
+    >
+
+      <div class="login-container">
+        <el-row
+          v-loading="loading"
+          type="flex"
+        >
+          <el-col :span="12">
+            <div
+              v-show="qrTypes.length"
+              :class="codeShow ? 'trans-pc' : 'trans'"
+              @click="showQr"
+            >
+              <div
+                v-show="imgAppShow"
+                class="imgApp"
+              />
+            </div>
+            <el-form
+              v-show="!codeShow"
+              ref="loginForm"
+              :model="loginForm"
+              :rules="loginRules"
+              size="default"
+            >
+
+              <div class="login-logo">
+                <svg-icon
+                  v-if="!loginLogoUrl && axiosFinished"
+                  icon-class="DataEase"
+                  custom-class="login-logo-icon"
+                />
+                <img
+                  v-if="loginLogoUrl && axiosFinished"
+                  :src="loginLogoUrl"
+                  alt=""
+                >
+              </div>
+              <div
+                v-if="uiInfo && uiInfo['ui.loginTitle'] && uiInfo['ui.loginTitle'].paramValue"
+                class="login-welcome"
+              >
+                {{ uiInfo['ui.loginTitle'].paramValue }}
+              </div>
+              <div
+                v-else
+                class="login-welcome"
+              >
+                {{ $t('login.welcome') + (uiInfo && uiInfo['ui.title'] && uiInfo['ui.title'].paramValue || ' DataEase') }}
+              </div>
+              <div class="login-form">
+                <el-form-item v-if="radioTypes.length > 1">
+                  <el-radio-group
+                    v-if="radioTypes.length > 1"
+                    v-model="loginForm.loginType"
+                    @change="changeLoginType"
+                  >
+                    <el-radio
+                      :label="0"
+                      size="mini"
+                    >{{ $t('login.default_login') }}</el-radio>
+                    <el-radio
+                      v-if="loginTypes.includes(1)"
+                      :label="1"
+                      size="mini"
+                    >LDAP</el-radio>
+                    <el-radio
+                      v-if="loginTypes.includes(2)"
+                      :label="2"
+                      size="mini"
+                    >OIDC</el-radio>
+                    <el-radio
+                      v-if="loginTypes.includes(7)"
+                      :label="7"
+                      size="mini"
+                    >Lark</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+                <el-form-item prop="username">
+                  <el-input
+                    v-model="loginForm.username"
+                    placeholder="ID"
+                    autofocus
+                    :disabled="loginTypes.includes(2) && loginForm.loginType === 2"
+                  />
+                </el-form-item>
+                <el-form-item prop="password">
+                  <el-input
+                    v-model="loginForm.password"
+                    :placeholder="$t('login.password')"
+                    show-password
+                    maxlength="30"
+                    show-word-limit
+                    autocomplete="new-password"
+                    :disabled="loginTypes.includes(2) && loginForm.loginType === 2"
+                    @keypress.enter.native="handleLogin"
+                  />
+                </el-form-item>
+              </div>
+              <div class="login-btn">
+                <el-button
+                  type="primary"
+                  class="submit"
+                  size="default"
+                  :disabled="loginTypes.includes(2) && loginForm.loginType === 2"
+                  @click.native.prevent="handleLogin"
+                >
+                  {{ $t('commons.login') }}
+                </el-button>
+                <div
+                  v-if="uiInfo && uiInfo['ui.demo.tips'] && uiInfo['ui.demo.tips'].paramValue"
+                  class="demo-tips"
+                >
+                  {{ uiInfo['ui.demo.tips'].paramValue }}
+                </div>
+              </div>
+              <div class="login-msg">
+                {{ msg }}
+              </div>
+            </el-form>
+            <div
+              v-show="codeShow"
+              class="code"
+            >
+              <el-row class="code-contaniner">
+                <plugin-com
+                  v-if="codeShow && loginTypes.includes(4) && codeIndex === 4"
+                  ref="WecomQr"
+                  component-name="WecomQr"
+                />
+                <plugin-com
+                  v-if="codeShow && loginTypes.includes(5) && codeIndex === 5"
+                  ref="DingtalkQr"
+                  component-name="DingtalkQr"
+                />
+                <plugin-com
+                  v-if="codeShow && loginTypes.includes(6) && codeIndex === 6"
+                  ref="LarkQr"
+                  component-name="LarkQr"
+                />
+              </el-row>
+
+              <div
+                v-if="qrTypes.length > 1"
+                class="login-third-items"
+              >
+                <span
+                  v-if="qrTypes.includes(4)"
+                  class="login-third-item login-third-wecom"
+                  @click="switchCodeIndex(4)"
+                />
+                <span
+                  v-if="qrTypes.includes(5)"
+                  class="login-third-item login-third-dingtalk"
+                  @click="switchCodeIndex(5)"
+                />
+                <span
+                  v-if="qrTypes.includes(6)"
+                  class="login-third-item login-third-lark"
+                  @click="switchCodeIndex(6)"
+                />
+              </div>
+
+            </div>
+          </el-col>
+          <el-col
+            v-loading="!axiosFinished"
+            :span="12"
+          >
+            <div
+              v-if="!loginImageUrl && axiosFinished"
+              class="login-image"
+            />
+            <div
+              v-if="loginImageUrl && axiosFinished"
+              class="login-image-de"
+              :style="{background:'url(' + loginImageUrl + ') no-repeat', 'backgroundSize':'contain'}"
+            />
+          </el-col>
+        </el-row>
+
+      </div>
+      <plugin-com
+        v-if="loginTypes.includes(2) && loginForm.loginType === 2"
+        ref="SSOComponent"
+        component-name="SSOComponent"
+      />
+
+      <plugin-com
+        v-if="loginTypes.includes(7) && loginForm.loginType === 7"
+        ref="LarksuiteQr"
+        component-name="LarksuiteQr"
+      />
+
+    </div>
+    <div
+      v-if="showFoot"
+      class="dynamic-login-foot"
+      v-html="footContent"
+    />
   </div>
 </template>
 
 <script>
 
 import { encrypt } from '@/utils/rsaEncrypt'
-import { ldapStatus, oidcStatus, getPublicKey, pluginLoaded } from '@/api/user'
+import { ldapStatus, oidcStatus, getPublicKey, pluginLoaded, defaultLoginType, wecomStatus, dingtalkStatus, larkStatus, larksuiteStatus, casStatus, casLoginPage } from '@/api/user'
 import { getSysUI } from '@/utils/auth'
+import { changeFavicon, showMultiLoginMsg } from '@/utils/index'
 import { initTheme } from '@/utils/ThemeUtil'
 import PluginCom from '@/views/system/plugin/PluginCom'
 import Cookies from 'js-cookie'
@@ -98,12 +245,24 @@ export default {
         'panel-default-tree',
         'chart-tree',
         'dataset-tree'
-      ]
+      ],
+      defaultType: 0,
+      showFoot: false,
+      footContent: '',
+      codeShow: false,
+      imgAppShow: true,
+      codeIndex: 4
     }
   },
   computed: {
     msg() {
       return this.$store.state.user.loginMsg
+    },
+    qrTypes() {
+      return this.loginTypes && this.loginTypes.filter(item => item > 3 && item < 7) || []
+    },
+    radioTypes() {
+      return this.loginTypes && this.loginTypes.filter(item => item < 4 || item > 6) || []
     }
   },
   watch: {
@@ -123,22 +282,76 @@ export default {
       this.contentShow = true
     })
 
+    casStatus().then(res => {
+      if (res.success && res.data) {
+        this.loginTypes.push(3)
+      }
+    })
+
     ldapStatus().then(res => {
       if (res.success && res.data) {
         this.loginTypes.push(1)
       }
+      this.setDefaultType()
     })
 
     oidcStatus().then(res => {
       if (res.success && res.data) {
         this.loginTypes.push(2)
       }
+      this.setDefaultType()
     })
+
+    wecomStatus().then(res => {
+      if (res.success && res.data) {
+        this.loginTypes.push(4)
+        const arr = this.loginTypes.filter(item => item > 3)
+        this.codeIndex = arr && arr.length && Math.min(...arr) || this.codeIndex
+      }
+      this.setDefaultType()
+    })
+
+    dingtalkStatus().then(res => {
+      if (res.success && res.data) {
+        this.loginTypes.push(5)
+        const arr = this.loginTypes.filter(item => item > 3)
+        this.codeIndex = arr && arr.length && Math.min(...arr) || this.codeIndex
+      }
+      this.setDefaultType()
+    })
+
+    larkStatus().then(res => {
+      if (res.success && res.data) {
+        this.loginTypes.push(6)
+        const arr = this.loginTypes.filter(item => item > 3)
+        this.codeIndex = arr && arr.length && Math.min(...arr) || this.codeIndex
+      }
+      this.setDefaultType()
+    })
+
+    larksuiteStatus().then(res => {
+      if (res.success && res.data) {
+        this.loginTypes.push(7)
+      }
+      this.setDefaultType()
+    })
+
     getPublicKey().then(res => {
       if (res.success && res.data) {
         // 保存公钥
         localStorage.setItem('publicKey', res.data)
       }
+    })
+    defaultLoginType().then(res => {
+      if (res && res.success) {
+        this.defaultType = res.data
+      }
+      if (this.loginTypes.includes(3) && this.defaultType === 3) {
+        casLoginPage().then(res => {
+          window.location.href = res.data
+        })
+      }
+      this.setDefaultType()
     })
   },
 
@@ -147,11 +360,9 @@ export default {
   },
 
   created() {
-    this.$store.dispatch('user/getUI').then(() => {
-      // const uiLists = this.$store.state.user.uiInfo
-      // this.uiInfo = format(uiLists)
+    this.$store.dispatch('user/getUI').then((res) => {
       this.axiosFinished = true
-      this.showLoginImage()
+      this.showLoginImage(res)
     }).catch(err => {
       console.error(err)
     })
@@ -161,28 +372,86 @@ export default {
       this.$error(msg)
     }
     this.clearOidcMsg()
+
+    if (Cookies.get('WecomError')) {
+      this.$error(Cookies.get('WecomError'))
+      this.switchCodeIndex(4)
+    }
+    this.clearWecomMsg()
+
+    if (Cookies.get('DingtalkError')) {
+      this.$error(Cookies.get('DingtalkError'))
+      this.switchCodeIndex(5)
+    }
+    this.clearDingtalkMsg()
+
+    if (Cookies.get('LarkError')) {
+      this.$error(Cookies.get('LarkError'))
+      this.switchCodeIndex(6)
+    }
+    this.clearLarkMsg()
+
+    if (Cookies.get('LarksuiteError')) {
+      this.$error(Cookies.get('LarksuiteError'))
+    }
+    this.clearLarksuiteMsg()
+    showMultiLoginMsg()
   },
 
   methods: {
+    switchCodeIndex(codeIndex) {
+      this.codeIndex = codeIndex
+    },
+    showQr() {
+      this.codeShow = !this.codeShow
+    },
+    setDefaultType() {
+      if (this.loginTypes.includes(this.defaultType)) {
+        this.loginForm.loginType = this.defaultType
+        this.$nextTick(() => {
+          this.changeLoginType(this.loginForm.loginType)
+        })
+      }
+    },
     clearOidcMsg() {
       Cookies.remove('OidcError')
       Cookies.remove('IdToken')
     },
-    showLoginImage() {
+    clearWecomMsg() {
+      Cookies.remove('WecomError')
+    },
+    clearDingtalkMsg() {
+      Cookies.remove('DingtalkError')
+    },
+    clearLarkMsg() {
+      Cookies.remove('LarkError')
+    },
+    clearLarksuiteMsg() {
+      Cookies.remove('LarksuiteError')
+    },
+    showLoginImage(uiInfo) {
       this.uiInfo = getSysUI()
+      if (!this.uiInfo || Object.keys(this.uiInfo).length === 0) {
+        this.uiInfo = uiInfo
+      }
       if (this.uiInfo['ui.loginImage'] && this.uiInfo['ui.loginImage'].paramValue) {
         this.loginImageUrl = '/system/ui/image/' + this.uiInfo['ui.loginImage'].paramValue
       }
       if (this.uiInfo['ui.loginLogo'] && this.uiInfo['ui.loginLogo'].paramValue) {
         this.loginLogoUrl = '/system/ui/image/' + this.uiInfo['ui.loginLogo'].paramValue
       }
-      /* if (this.uiInfo['ui.themeStr'] && this.uiInfo['ui.themeStr'].paramValue) {
-        if (this.uiInfo['ui.themeStr'].paramValue === 'dark') {
-          document.body.className = 'blackTheme'
-        } else if (this.uiInfo['ui.themeStr'].paramValue === 'light') {
-          document.body.className = ''
+
+      if (this.uiInfo['ui.favicon'] && this.uiInfo['ui.favicon'].paramValue) {
+        const faviconUrl = '/system/ui/image/' + this.uiInfo['ui.favicon'].paramValue
+        changeFavicon(faviconUrl)
+      }
+      if (this.uiInfo['ui.showFoot'] && this.uiInfo['ui.showFoot'].paramValue) {
+        this.showFoot = this.uiInfo['ui.showFoot'].paramValue === true || this.uiInfo['ui.showFoot'].paramValue === 'true'
+        if (this.showFoot) {
+          const content = this.uiInfo['ui.footContent'] && this.uiInfo['ui.footContent'].paramValue
+          this.footContent = content
         }
-      } */
+      }
     },
     initCache() {
       this.clearLocalStorage.forEach(item => {
@@ -193,6 +462,10 @@ export default {
     handleLogin() {
       this.initCache()
       this.clearOidcMsg()
+      this.clearWecomMsg()
+      this.clearDingtalkMsg()
+      this.clearLarkMsg()
+      this.clearLarksuiteMsg()
       this.$refs.loginForm.validate(valid => {
         if (valid) {
           this.loading = true
@@ -201,22 +474,25 @@ export default {
             password: encrypt(this.loginForm.password),
             loginType: this.loginForm.loginType
           }
-          const publicKey = localStorage.getItem('publicKey')
-          console.log(publicKey)
           this.$store.dispatch('user/login', user).then(() => {
             this.$router.push({ path: this.redirect || '/' })
             this.loading = false
-          }).catch(() => {
+          }).catch((e) => {
             this.loading = false
+            e?.response?.data?.message?.startsWith('MultiLoginError') && this.showMessage()
           })
         } else {
           return false
         }
       })
     },
+    showMessage() {
+      showMultiLoginMsg()
+    },
     changeLoginType(val) {
-      if (val !== 2) return
+      if (val !== 2 && val !== 7) return
       this.clearOidcMsg()
+      this.clearLarksuiteMsg()
       this.$nextTick(() => {
 
       })
@@ -371,4 +647,71 @@ export default {
     }
   }
 }
+.dynamic-login-foot {
+  visibility: visible;
+  width: 100%;
+  position: fixed;
+  z-index: 302;
+  bottom: 0;
+  left: 0;
+  height: auto;
+  padding-top: 1px;
+  zoom: 1;
+  margin: 0;
+}
+
+.trans {
+  position: absolute;
+  left: calc(50% - 64px);
+  top: 0;
+  width: 64px;
+  height: 64px;
+  background-image: url(../../assets/qrcode.png) ;
+  cursor:pointer;
+}
+.trans-pc {
+  margin-left: calc(100% - 64px);
+  top: 0;
+  width: 64px;
+  height: 64px;
+  background: var(--primary,#3370ff) url(../../assets/xianshiqi-2.png) no-repeat top right/40px;
+  cursor:pointer;
+}
+.imgApp {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(225deg,transparent 45px, #fff 0);
+}
+.code{
+  width: 100%;
+  height: 100%; //将登录框挤出显示区域
+  text-align: center;
+  img {
+    width: 150px;
+    height: 150px;
+    padding: 10px;
+  }
+  .code-contaniner {
+    height: 410px;
+  }
+}
+.login-third-item {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50%;
+  background: #ccc;
+  cursor: pointer;
+  margin: 0 10px;
+}
+.login-third-wecom {
+  background: url(../../assets/wecom.png) no-repeat 50%/cover;
+}
+.login-third-dingtalk {
+  background: url(../../assets/dingding01.png) no-repeat 50%/cover;
+}
+.login-third-lark {
+  background: url(../../assets/lark.png) no-repeat 50%/cover;
+}
+
 </style>

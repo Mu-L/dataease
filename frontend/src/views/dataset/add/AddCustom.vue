@@ -1,36 +1,79 @@
 <template>
   <el-col>
-    <el-row style="height: 26px;" class="title-text">
+    <el-row
+      style="height: 26px;"
+      class="title-text"
+    >
       <span style="line-height: 26px;">
-        {{ param.tableId?$t('dataset.edit_custom_table'):$t('dataset.add_custom_table') }}
+        {{ param.tableId ? $t('dataset.edit_custom_table') : $t('dataset.add_custom_table') }}
       </span>
       <el-row style="float: right">
-        <el-button size="mini" @click="cancel">
+        <el-button
+          size="mini"
+          @click="cancel"
+        >
           {{ $t('dataset.cancel') }}
         </el-button>
-        <el-button :disabled="!name || checkedList.length === 0" size="mini" type="primary" @click="save">
+        <el-button
+          :disabled="!name || checkedList.length === 0"
+          size="mini"
+          type="primary"
+          @click="save"
+        >
           {{ $t('dataset.confirm') }}
         </el-button>
       </el-row>
     </el-row>
-    <el-divider />
+    <el-divider/>
     <el-row>
       <el-form :inline="true">
-        <el-form-item class="form-item" :label="$t('commons.name')">
-          <el-input v-model="name" size="mini" :placeholder="$t('commons.name')" />
+        <el-form-item
+          class="form-item"
+          :label="$t('commons.name')"
+        >
+          <el-input
+            v-model="name"
+            size="mini"
+            :placeholder="$t('commons.name')"
+          />
         </el-form-item>
       </el-form>
     </el-row>
     <el-col style="display: flex;flex-direction: row">
-      <el-col class="panel-height" style="width: 220px;border-right:solid 1px #dcdfe6;border-top:solid 1px #dcdfe6;padding-right: 15px;overflow-y: auto;">
-        <dataset-group-selector :custom-type="customType" :table="table" :checked-list="checkedList" :union-data="unionData" @getTable="getTable" />
+      <el-col
+        class="panel-height"
+        style="width: 220px;border-right:solid 1px #dcdfe6;border-top:solid 1px #dcdfe6;padding-right: 15px;overflow-y: auto;"
+      >
+        <dataset-group-selector
+          :custom-type="customType"
+          :table="table"
+          :checked-list="checkedList"
+          :union-data="unionData"
+          @getTable="getTable"
+        />
       </el-col>
-      <el-col class="panel-height" style="width: 235px;border-top:solid 1px #dcdfe6;padding: 0 15px;overflow-y: auto;">
-        <dataset-custom-field :table="table" :checked-list="checkedList" @getChecked="getChecked" />
+      <el-col
+        class="panel-height"
+        style="width: 235px;border-top:solid 1px #dcdfe6;padding: 0 15px;overflow-y: auto;"
+      >
+        <dataset-custom-field
+          :table="table"
+          :checked-list="checkedList"
+          @getChecked="getChecked"
+        />
       </el-col>
-      <el-col class="panel-height" style="flex: 1;overflow: hidden;">
-        <el-card class="box-card dataPreview" shadow="never">
-          <div slot="header" class="clearfix">
+      <el-col
+        class="panel-height"
+        style="flex: 1;overflow: hidden;"
+      >
+        <el-card
+          class="box-card dataPreview"
+          shadow="never"
+        >
+          <div
+            slot="header"
+            class="clearfix"
+          >
             <span style="font-size: 16px;">{{ $t('dataset.data_preview') }}</span>
           </div>
           <ux-grid
@@ -62,9 +105,10 @@
 </template>
 
 <script>
-import { post, getTable } from '@/api/dataset/dataset'
+import { getTable, post } from '@/api/dataset/dataset'
 import DatasetGroupSelector from '../common/DatasetGroupSelector'
 import DatasetCustomField from '../common/DatasetCustomField'
+import { updateCacheTree } from '@/components/canvas/utils/utils'
 
 export default {
   name: 'AddCustom',
@@ -84,7 +128,7 @@ export default {
       height: 500,
       data: [],
       fields: [],
-      customType: ['db', 'sql', 'excel']
+      customType: ['db', 'sql', 'excel', 'api']
     }
   },
   watch: {
@@ -94,14 +138,14 @@ export default {
       }
     },
     'checkedList': function() {
-      // console.log(this.checkedList)
       this.getUnionData()
     }
   },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.calHeight)
+  },
   mounted() {
-    window.onresize = () => {
-      this.calHeight()
-    }
+    window.addEventListener('resize', this.calHeight)
     this.calHeight()
 
     if (this.param && this.param.id && this.param.tableId) {
@@ -119,11 +163,9 @@ export default {
     },
 
     getTable(table) {
-      // console.log(table)
       this.table = table
     },
     getChecked(tableCheckedField) {
-      // console.log(tableCheckedField)
       if (tableCheckedField.checkedFields && tableCheckedField.checkedFields.length > 0) {
         if (!this.checkedList.some(ele => ele.tableId === tableCheckedField.tableId)) {
           this.checkedList.push(tableCheckedField)
@@ -146,7 +188,6 @@ export default {
           this.checkedList.splice(index, 1)
         }
       }
-      // console.log(this.checkedList)
       this.getData()
     },
     getData() {
@@ -162,24 +203,22 @@ export default {
           info: '{"list":' + JSON.stringify(this.checkedList) + '}'
         }
         post('/dataset/table/customPreview', table).then(response => {
-          // console.log(response)
           this.fields = response.data.fields
           this.data = response.data.data
-          const datas = this.data
-          this.$refs.plxTable.reloadData(datas)
+          const data = this.data
+          this.$refs.plxTable.reloadData(data)
         })
       } else {
         this.fields = []
         this.data = []
-        const datas = this.data
-        this.$refs.plxTable.reloadData(datas)
+        const data = this.data
+        this.$refs.plxTable.reloadData(data)
       }
     },
     getUnionData() {
       if (this.checkedList && this.checkedList.length > 0) {
         // 根据第一个选择的数据集找到关联视图
         post('dataset/union/listByTableId/' + this.checkedList[0].tableId, {}).then(response => {
-          // console.log(response)
           this.unionData = response.data
         })
       } else {
@@ -214,6 +253,12 @@ export default {
       }
       post('/dataset/table/update', table).then(response => {
         // this.$store.dispatch('dataset/setSceneData', new Date().getTime())
+        if (table.id) {
+          const renameNode = { id: table.id, name: table.name, label: table.name }
+          updateCacheTree('rename', 'dataset-tree', renameNode, JSON.parse(localStorage.getItem('dataset-tree')))
+        } else {
+          updateCacheTree('batchNew', 'dataset-tree', response.data, JSON.parse(localStorage.getItem('dataset-tree')))
+        }
         this.$emit('saveSuccess', table)
         this.cancel()
       })
@@ -258,49 +303,50 @@ export default {
 </script>
 
 <style scoped>
-  .el-divider--horizontal {
-    margin: 12px 0;
-  }
+.el-divider--horizontal {
+  margin: 12px 0;
+}
 
-  .form-item {
-    margin-bottom: 6px;
-  }
+.form-item {
+  margin-bottom: 6px;
+}
 
-  .el-checkbox {
-    margin-bottom: 14px;
-    margin-left: 0;
-    margin-right: 14px;
-  }
+.el-checkbox {
+  margin-bottom: 14px;
+  margin-left: 0;
+  margin-right: 14px;
+}
 
-  .el-checkbox.is-bordered + .el-checkbox.is-bordered {
-    margin-left: 0;
-  }
+.el-checkbox.is-bordered + .el-checkbox.is-bordered {
+  margin-left: 0;
+}
 
-  .dataPreview>>>.el-card__header{
-    padding: 0 8px 12px;
-  }
+.dataPreview ::v-deep .el-card__header {
+  padding: 0 8px 12px;
+}
 
-  .dataPreview>>>.el-card__body{
-    padding:10px;
-  }
+.dataPreview ::v-deep .el-card__body {
+  padding: 10px;
+}
 
-  span{
-    font-size: 14px;
-  }
+span {
+  font-size: 14px;
+}
 
-  .panel-height{
-    height: calc(100vh - 56px - 15px - 26px - 25px - 43px);
-  }
+.panel-height {
+  height: calc(100vh - 56px - 15px - 26px - 25px - 43px);
+}
 
-  .blackTheme .panel-height{
-    height: calc(100vh - 56px - 15px - 26px - 25px - 43px);
-    border-color: var(--TableBorderColor) !important;
-  }
+.blackTheme .panel-height {
+  height: calc(100vh - 56px - 15px - 26px - 25px - 43px);
+  border-color: var(--TableBorderColor) !important;
+}
 
-  .span-number{
-    color: #0a7be0;
-  }
-  .table-count{
-    color: #606266;
-  }
+.span-number {
+  color: #0a7be0;
+}
+
+.table-count {
+  color: #606266;
+}
 </style>

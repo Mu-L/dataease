@@ -1,6 +1,6 @@
 package io.dataease.controller.sys.base;
 
-import io.dataease.base.mapper.ext.query.GridExample;
+import io.dataease.ext.query.GridExample;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import org.apache.commons.collections.CollectionUtils;
@@ -39,7 +39,7 @@ public class BaseGridRequest implements Serializable {
         GridExample gridExample = new GridExample();
         if (CollectionUtils.isNotEmpty(conditions)) {
             GridExample.Criteria criteria = gridExample.createCriteria();
-            conditions.forEach(criteria::addCondtion);
+            conditions.forEach(criteria::addCondition);
         }
 
         if (CollectionUtils.isNotEmpty(orders)){

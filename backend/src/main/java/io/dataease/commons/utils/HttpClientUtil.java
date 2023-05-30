@@ -1,5 +1,6 @@
 package io.dataease.commons.utils;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -63,7 +64,6 @@ public class HttpClientUtil {
             throw new RuntimeException("HttpClient构建失败", e);
         }
     }
-
     /**
      * Get http请求
      *
@@ -85,15 +85,11 @@ public class HttpClientUtil {
             for (String key : header.keySet()) {
                 httpGet.addHeader(key, header.get(key));
             }
-
-            httpGet.addHeader(HTTP.CONTENT_ENCODING, config.getCharset());
-
             HttpResponse response = httpClient.execute(httpGet);
-            HttpEntity entity = response.getEntity();
-            return EntityUtils.toString(entity, config.getCharset());
+            return getResponseStr(response, config);
         } catch (Exception e) {
             logger.error("HttpClient查询失败", e);
-            throw new RuntimeException("HttpClient查询失败", e);
+            throw new RuntimeException("HttpClient查询失败: " + e.getMessage());
         } finally {
             try {
                 httpClient.close();
@@ -124,22 +120,17 @@ public class HttpClientUtil {
             for (String key : header.keySet()) {
                 httpPost.addHeader(key, header.get(key));
             }
-            httpPost.addHeader(HTTP.CONTENT_TYPE, "application/json");
-            httpPost.addHeader(HTTP.CONTENT_ENCODING, config.getCharset());
-
             EntityBuilder entityBuilder = EntityBuilder.create();
             entityBuilder.setText(json);
             entityBuilder.setContentType(ContentType.APPLICATION_JSON);
-            entityBuilder.setContentEncoding(config.getCharset());
             HttpEntity requestEntity = entityBuilder.build();
             httpPost.setEntity(requestEntity);
 
             HttpResponse response = httpClient.execute(httpPost);
-            HttpEntity entity = response.getEntity();
-            return EntityUtils.toString(entity, config.getCharset());
+            return getResponseStr(response, config);
         } catch (Exception e) {
             logger.error("HttpClient查询失败", e);
-            throw new RuntimeException("HttpClient查询失败", e);
+            throw new RuntimeException("HttpClient查询失败: " + e.getMessage());
         } finally {
             try {
                 httpClient.close();
@@ -181,8 +172,6 @@ public class HttpClientUtil {
             for (String key : header.keySet()) {
                 httpPost.addHeader(key, header.get(key));
             }
-            httpPost.addHeader(HTTP.CONTENT_ENCODING, config.getCharset());
-
             if (body != null && body.size() > 0) {
                 List<NameValuePair> nvps = new ArrayList<>();
                 for (String key : body.keySet()) {
@@ -197,11 +186,10 @@ public class HttpClientUtil {
             }
 
             HttpResponse response = httpClient.execute(httpPost);
-            HttpEntity entity = response.getEntity();
-            return EntityUtils.toString(entity, config.getCharset());
+            return getResponseStr(response, config);
         } catch (Exception e) {
             logger.error("HttpClient查询失败", e);
-            throw new RuntimeException("HttpClient查询失败", e);
+            throw new RuntimeException("HttpClient查询失败: " + e.getMessage());
         } finally {
             try {
                 httpClient.close();
@@ -211,5 +199,14 @@ public class HttpClientUtil {
         }
     }
 
-
+    private static String getResponseStr(HttpResponse response, HttpClientConfig config) throws Exception{
+        if(response.getStatusLine().getStatusCode() >= 400){
+            String msg = EntityUtils.toString(response.getEntity(), config.getCharset());
+            if(StringUtils.isEmpty(msg)){
+                msg = "StatusCode: " + response.getStatusLine().getStatusCode();
+            }
+            throw new Exception(msg);
+        }
+        return EntityUtils.toString(response.getEntity(), config.getCharset());
+    }
 }

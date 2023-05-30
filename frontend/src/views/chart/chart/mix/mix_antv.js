@@ -23,7 +23,7 @@ export function baseMixOptionAntV(plot, container, chart, action) {
   const yAxis = getYAxis(chart)
   const yAxisExt = getYAxisExt(chart)
   // data
-  const data = chart.data.datas
+  const data = chart.data.data
   const plots = []
   // color
   let customAttr = {}
@@ -43,7 +43,7 @@ export function baseMixOptionAntV(plot, container, chart, action) {
     const o = {
       type: '',
       options: {
-        color: colors[i % 9],
+        color: colors[i % colors.length],
         data: d.data,
         xField: 'field',
         yField: 'value',
@@ -54,18 +54,6 @@ export function baseMixOptionAntV(plot, container, chart, action) {
         xAxis: i > 0 ? false : xAxis,
         yAxis: (i >= JSON.parse(chart.yaxis).length) ? yAxisExt : yAxis,
         interactions: [
-          {
-            type: 'element-active', cfg: {
-              start: [{
-                trigger: 'element:mouseenter',
-                action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer']
-              }],
-              end: [{
-                trigger: 'element:mouseleave',
-                action: ['element-highlight:reset', 'element-active:reset', 'cursor:default']
-              }]
-            }
-          },
           {
             type: 'legend-active', cfg: {
               start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -105,7 +93,8 @@ export function baseMixOptionAntV(plot, container, chart, action) {
     appendPadding: getPadding(chart),
     syncViewPadding: true,
     plots: plots,
-    legend: legend
+    legend: legend,
+    tooltip: { shared: true }
   }
 
   // 开始渲染

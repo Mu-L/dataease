@@ -7,6 +7,7 @@ import {
 } from '@/views/chart/chart/common/common_antv'
 
 import { Pie, Rose } from '@antv/g2plot'
+import { antVCustomColor } from '@/views/chart/chart/util'
 
 export function basePieOptionAntV(plot, container, chart, action) {
   // theme
@@ -17,7 +18,7 @@ export function basePieOptionAntV(plot, container, chart, action) {
   // style
   const legend = getLegend(chart)
   // data
-  const data = chart.data.datas
+  const data = chart.data.data
   // options
   const options = {
     theme: theme,
@@ -43,12 +44,6 @@ export function basePieOptionAntV(plot, container, chart, action) {
       }
     },
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
       {
         type: 'legend-active', cfg: {
           start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -84,6 +79,8 @@ export function basePieOptionAntV(plot, container, chart, action) {
       options.innerRadius = parseFloat(parseInt(s.pieInnerRadius) / 100)
     }
   }
+  // custom color
+  options.color = antVCustomColor(chart)
 
   // 开始渲染
   if (plot) {
@@ -106,7 +103,7 @@ export function basePieRoseOptionAntV(plot, container, chart, action) {
   // style
   const legend = getLegend(chart)
   // data
-  const data = chart.data.datas
+  const data = chart.data.data
   // options
   const options = {
     theme: theme,
@@ -130,12 +127,6 @@ export function basePieRoseOptionAntV(plot, container, chart, action) {
       }
     },
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
       {
         type: 'legend-active', cfg: {
           start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -165,6 +156,8 @@ export function basePieRoseOptionAntV(plot, container, chart, action) {
       options.innerRadius = parseFloat(parseInt(s.pieInnerRadius) / 100)
     }
   }
+  // custom color
+  options.color = antVCustomColor(chart)
 
   // 开始渲染
   if (plot) {

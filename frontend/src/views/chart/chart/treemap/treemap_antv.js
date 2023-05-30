@@ -10,7 +10,7 @@ export function baseTreemapOptionAntV(plot, container, chart, action) {
   // style
   const legend = getLegend(chart)
   // data
-  const data = chart.data.datas
+  const data = chart.data.data
   // options
   const options = {
     theme: theme,
@@ -24,12 +24,6 @@ export function baseTreemapOptionAntV(plot, container, chart, action) {
     tooltip: tooltip,
     legend: legend,
     interactions: [
-      {
-        type: 'element-active', cfg: {
-          start: [{ trigger: 'element:mouseenter', action: ['element-highlight:highlight', 'element-active:reset', 'cursor:pointer'] }],
-          end: [{ trigger: 'element:mouseleave', action: ['element-highlight:reset', 'element-active:reset', 'cursor:default'] }]
-        }
-      },
       {
         type: 'legend-active', cfg: {
           start: [{ trigger: 'legend-item:mouseenter', action: ['element-active:reset'] }],
@@ -47,23 +41,8 @@ export function baseTreemapOptionAntV(plot, container, chart, action) {
           end: [{ trigger: 'element:mouseleave', action: 'tooltip:hide' }]
         }
       }
-      // {
-      //   type: 'active-region', cfg: {
-      //     start: [{ trigger: 'interval:mousemove', action: 'active-region:show' }],
-      //     end: [{ trigger: 'interval:mouseleave', action: 'active-region:hide' }]
-      //   }
-      // }
     ]
   }
-  // size
-  let customAttr = {}
-  if (chart.customAttr) {
-    customAttr = JSON.parse(chart.customAttr)
-    if (customAttr.size) {
-      const s = JSON.parse(JSON.stringify(customAttr.size))
-    }
-  }
-
   // 开始渲染
   if (plot) {
     plot.destroy()

@@ -1,10 +1,10 @@
 package io.dataease.controller.panel.server;
 
-import io.dataease.base.domain.PanelShare;
+import io.dataease.plugins.common.base.domain.PanelShare;
 import io.dataease.controller.panel.api.ShareApi;
 import io.dataease.controller.request.panel.PanelShareFineDto;
 import io.dataease.controller.request.panel.PanelShareRemoveRequest;
-import io.dataease.controller.request.panel.PanelShareRequest;
+import io.dataease.controller.request.panel.PanelShareSearchRequest;
 import io.dataease.controller.sys.base.BaseGridRequest;
 import io.dataease.dto.panel.PanelShareDto;
 import io.dataease.dto.panel.PanelShareOutDTO;
@@ -23,7 +23,6 @@ public class ShareServer implements ShareApi {
     @Resource
     private ShareService shareService;
 
-
     @Override
     public List<PanelShareDto> treeList(@RequestBody BaseGridRequest request) {
         return shareService.queryTree(request);
@@ -35,7 +34,7 @@ public class ShareServer implements ShareApi {
     }
 
     @Override
-    public List<PanelShare> queryWithResourceId(@RequestBody BaseGridRequest request) {
+    public List<PanelShare> queryWithResourceId(@RequestBody PanelShareSearchRequest request) {
         return shareService.queryWithResource(request);
     }
 
@@ -53,6 +52,9 @@ public class ShareServer implements ShareApi {
     public void removeShares(@RequestBody PanelShareRemoveRequest request) {
         shareService.removeShares(request);
     }
+
+    @Override
+    public void removePanelShares(String panelId) {
+        shareService.removeSharesyPanel(panelId);
+    }
 }
-
-

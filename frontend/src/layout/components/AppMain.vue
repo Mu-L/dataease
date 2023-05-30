@@ -1,6 +1,9 @@
 <template>
   <section class="app-main">
-    <transition name="fade-transform" mode="out-in">
+    <transition
+      name="fade-transform"
+      mode="out-in"
+    >
       <el-main class="ms-main-container">
         <router-view :key="key" />
       </el-main>
@@ -20,15 +23,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-
     .app-main {
         height: 100%;
-        /* topbar 56  */
-        // min-height: calc(100vh - 56px);
-        // width: 100%;
-        // height: 100%;
-         // position: relative;
-        // overflow: hidden;
     }
 
     .fixed-header + .app-main {
@@ -42,7 +38,6 @@ export default {
 </style>
 
 <style lang="scss">
-    // fix css style bug in open el-dialog
     .el-popup-parent--hidden {
         .fixed-header {
             padding-right: 15px;

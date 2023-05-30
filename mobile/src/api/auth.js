@@ -2,7 +2,7 @@ import request from '@/common/js/request'
 
 export function login(data) {
     return request({
-        url: '/api/auth/login',
+        url: '/api/auth/mobileLogin',
         method: 'post',
         data
     })
@@ -42,4 +42,11 @@ export function validate(data) {
         method: 'post',
         data
     })
+}
+
+export function getUIinfo() {
+  return request({
+    url: '/system/ui/info',
+    method: 'get'
+  })
 }

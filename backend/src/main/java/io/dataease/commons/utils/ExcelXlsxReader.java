@@ -1,7 +1,9 @@
 package io.dataease.commons.utils;
-import io.dataease.dto.datasource.TableFiled;
+
 import io.dataease.dto.dataset.ExcelSheetData;
 import io.dataease.i18n.Translator;
+import io.dataease.plugins.common.base.domain.DatasetTableField;
+import io.dataease.plugins.common.dto.datasource.TableField;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -33,9 +35,10 @@ import java.util.*;
 public class ExcelXlsxReader extends DefaultHandler {
 
     /**
-     * 自定义获取表格某些信息
+     * 自定义获取表格某些信
      */
-    public Map map = new TreeMap<String,String>();
+    public Map map = new TreeMap<String, String>();
+
     /**
      * 单元格中的数据可能的数据类型
      */
@@ -56,7 +59,7 @@ public class ExcelXlsxReader extends DefaultHandler {
     /**
      * 总行数
      */
-    private int totalRows=0;
+    private int totalRows = 0;
 
     /**
      * 一行内cell集合
@@ -100,18 +103,29 @@ public class ExcelXlsxReader extends DefaultHandler {
      */
     private String formatString;
 
+
     //定义前一个元素和当前元素的位置，用来计算其中空的单元格数量，如A6和A8等
     private String preRef = null, ref = null;
 
     //定义该文档一行最大的单元格数，用来补全一行最后可能缺失的单元格
     private String maxRef = null;
 
+    public List<DatasetTableField> getDatasetTableFields() {
+        return datasetTableFields;
+    }
+
+    public void setDatasetTableFields(List<DatasetTableField> datasetTableFields) {
+        this.datasetTableFields = datasetTableFields;
+    }
+
+    private List<DatasetTableField> datasetTableFields = null;
+
     /**
      * 单元格
      */
     private StylesTable stylesTable;
 
-    public List<TableFiled> fields = new ArrayList<>();
+    public List<TableField> fields = new ArrayList<>();
     public List<List<String>> data = new ArrayList<>();
     public List<ExcelSheetData> totalSheets = new ArrayList<>();
     /**
@@ -119,12 +133,21 @@ public class ExcelXlsxReader extends DefaultHandler {
      */
     private boolean isDateFormat = false;
 
+    public Integer getObtainedNum() {
+        return obtainedNum;
+    }
 
-    public List<TableFiled> getFields() {
+    public void setObtainedNum(Integer obtainedNum) {
+        this.obtainedNum = obtainedNum;
+    }
+
+    private Integer obtainedNum = null;
+
+    public List<TableField> getFields() {
         return fields;
     }
 
-    public void setFields(List<TableFiled> fields) {
+    public void setFields(List<TableField> fields) {
         this.fields = fields;
     }
 
@@ -132,7 +155,7 @@ public class ExcelXlsxReader extends DefaultHandler {
         return data;
     }
 
-    public void setData(List<List<String>>  data) {
+    public void setData(List<List<String>> data) {
         this.data = data;
     }
 
@@ -142,6 +165,9 @@ public class ExcelXlsxReader extends DefaultHandler {
         stylesTable = xssfReader.getStylesTable();
         SharedStringsTable sst = xssfReader.getSharedStringsTable();
         XMLReader parser = XMLReaderFactory.createXMLReader("org.apache.xerces.parsers.SAXParser");
+        parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        parser.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        parser.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
         this.sst = sst;
         parser.setContentHandler(this);
         XSSFReader.SheetIterator sheets = (XSSFReader.SheetIterator) xssfReader.getSheetsData();
@@ -156,7 +182,7 @@ public class ExcelXlsxReader extends DefaultHandler {
 
             ExcelSheetData excelSheetData = new ExcelSheetData();
             excelSheetData.setData(new ArrayList<>(data));
-            excelSheetData.setExcelLable(sheets.getSheetName());
+            excelSheetData.setExcelLabel(sheets.getSheetName());
             excelSheetData.setFields(new ArrayList<>(fields));
             totalSheets.add(excelSheetData);
 
@@ -176,11 +202,11 @@ public class ExcelXlsxReader extends DefaultHandler {
      */
     @Override
     public void startElement(String uri, String localName, String name, Attributes attributes) throws SAXException {
-        if(curRow>101){
+        if (this.obtainedNum != null && curRow > this.obtainedNum) {
             return;
         }
 
-        if(name.equalsIgnoreCase("mergeCell")){
+        if (name.equalsIgnoreCase("mergeCell")) {
             throw new RuntimeException(Translator.get("i18n_excel_have_merge_region"));
         }
         //c => 单元格
@@ -207,6 +233,7 @@ public class ExcelXlsxReader extends DefaultHandler {
      * 得到单元格对应的索引值或是内容值
      * 如果单元格类型是字符串、INLINESTR、数字、日期，lastIndex则是索引值
      * 如果单元格类型是布尔值、错误、公式，lastIndex则是内容值
+     *
      * @param ch
      * @param start
      * @param length
@@ -214,7 +241,7 @@ public class ExcelXlsxReader extends DefaultHandler {
      */
     @Override
     public void characters(char[] ch, int start, int length) throws SAXException {
-        if(curRow>101){
+        if (this.obtainedNum != null && curRow > this.obtainedNum) {
             return;
         }
         lastIndex += new String(ch, start, length);
@@ -230,20 +257,20 @@ public class ExcelXlsxReader extends DefaultHandler {
      */
     @Override
     public void endElement(String uri, String localName, String name) throws SAXException {
-        if(curRow>101){
+        if (this.obtainedNum != null && curRow > this.obtainedNum) {
             return;
         }
         //t元素也包含字符串
         if (isTElement) {       //这个程序没经过
             //将单元格内容加入rowlist中，在这之前先去掉字符串前后的空白符
             String value = lastIndex.trim();
-            if(curRow==1){
-                TableFiled tableFiled = new TableFiled();
-                tableFiled.setFieldType("TEXT");
-                tableFiled.setFieldSize(65533);
-                tableFiled.setFieldName(value);
-                tableFiled.setRemarks(value);
-                this.fields.add(tableFiled);
+            if (curRow == 1) {
+                TableField tableField = new TableField();
+                tableField.setFieldType("TEXT");
+                tableField.setFieldSize(65533);
+                tableField.setFieldName(value);
+                tableField.setRemarks(value);
+                this.fields.add(tableField);
             }
             cellList.add(curCol, value);
             curCol++;
@@ -257,21 +284,21 @@ public class ExcelXlsxReader extends DefaultHandler {
             String value = this.getDataValue(lastIndex.trim(), "");//根据索引值获取对应的单元格值
             if (preRef == null) {
                 preRef = "A" + curRow;
-                if(!preRef.equalsIgnoreCase(ref)){
+                if (!preRef.equalsIgnoreCase(ref)) {
                     cellList.add(curCol, "");
                     curCol++;
                 }
             }
 
             //补全单元格之间的空单元格
-            if (!"A".equals(preRef.substring(0, 1)) && curRow==1 && preRef.equalsIgnoreCase(ref)) {
+            if (!"A".equals(preRef.substring(0, 1)) && curRow == 1 && preRef.equalsIgnoreCase(ref)) {
                 throw new RuntimeException(Translator.get("i18n_excel_empty_column"));
-            }else if (!ref.equals(preRef)) {
+            } else if (!ref.equals(preRef)) {
                 int len = countNullCell(ref, preRef);
                 for (int i = 0; i < len; i++) {
-                    if(curCol < this.fields.size()){
+                    if (curCol < this.fields.size()) {
                         cellList.add(curCol, "");
-                        if(curRow==1){
+                        if (curRow == 1) {
                             addField("", curCol);
                         }
                         curCol++;
@@ -279,7 +306,7 @@ public class ExcelXlsxReader extends DefaultHandler {
                 }
             }
 
-            if(curCol < this.fields.size()){
+            if (curCol < this.fields.size()) {
                 cellList.add(curCol, value);
             }
             curCol++;
@@ -295,7 +322,10 @@ public class ExcelXlsxReader extends DefaultHandler {
                 if (curRow == 1) {
                     maxRef = ref;
                 }
-                if(curRow>1){
+                if (curRow > 1) {
+                    for (int i = cellList.size(); i < this.fields.size(); i++) {
+                        cellList.add("");
+                    }
                     List<String> tmp = new ArrayList<>(cellList);
                     this.getData().add(tmp);
                 }
@@ -305,7 +335,7 @@ public class ExcelXlsxReader extends DefaultHandler {
                 curCol = 0;
                 preRef = null;
                 ref = null;
-                flag=false;
+                flag = false;
             }
         }
     }
@@ -340,9 +370,8 @@ public class ExcelXlsxReader extends DefaultHandler {
             formatIndex = style.getDataFormat();
             formatString = style.getDataFormatString();
             short format = this.formatIndex;
-            if ( (14 <= format && format <= 17) || format == 20 || format == 22 || format == 31 || format == 35 || format == 45 || format == 46 || format == 47 || (57 <= format && format <= 59)
-                    || (175 < format && format < 178) || (182 <= format && format <= 196) || (210 <= format && format <= 213) || (208 == format))
-            { // 日期
+            if ((14 <= format && format <= 17) || format == 20 || format == 22 || format == 31 || format == 35 || format == 45 || format == 46 || format == 47 || (57 <= format && format <= 59)
+                    || (175 < format && format < 178) || (182 <= format && format <= 196) || (210 <= format && format <= 213) || (208 == format)) { // 日期
                 isDateFormat = true;
             }
 
@@ -352,6 +381,7 @@ public class ExcelXlsxReader extends DefaultHandler {
 
     /**
      * 对解析出来的数据进行类型处理
+     *
      * @param value   单元格的值，
      *                value代表解析：BOOL的为0或1， ERROR的为内容值，FORMULA的为内容值，INLINESTR的为索引值需转换为内容值，
      *                SSTINDEX的为索引值需转换为内容值， NUMBER为内容值，DATE为内容值
@@ -360,7 +390,7 @@ public class ExcelXlsxReader extends DefaultHandler {
      */
     @SuppressWarnings("deprecation")
     public String getDataValue(String value, String thisStr) {
-        String type = "TEXT";
+        String type = null;
         switch (nextDataType) {
             // 这几个的顺序不能随便交换，交换了很可能会导致数据错误
             case BOOL: //布尔值
@@ -384,11 +414,11 @@ public class ExcelXlsxReader extends DefaultHandler {
                 String sstIndex = value.toString();
                 try {
                     int idx = Integer.parseInt(sstIndex);
-                    if(sst != null){
+                    if (sst != null) {
                         XSSFRichTextString rtss = new XSSFRichTextString(sst.getEntryAt(idx));//根据idx索引值获取内容值
                         thisStr = rtss.toString();
                         rtss = null;
-                    }else {
+                    } else {
                         thisStr = value.toString();
                     }
 
@@ -399,18 +429,23 @@ public class ExcelXlsxReader extends DefaultHandler {
                 break;
             case NUMBER: //数字
                 if (formatString != null && isDateFormat) {
-                    thisStr = formatter.formatRawCellContents(Double.parseDouble(value), formatIndex, formatString).trim();
+                    if (getDatasetTableFields() != null && getDatasetTableFields().get(curCol).getDeExtractType() == 1) {
+                        thisStr = formatter.formatRawCellContents(Double.parseDouble(value), formatIndex, "yyyy-mm-dd hh:mm:ss").trim();
+                    } else {
+                        thisStr = formatter.formatRawCellContents(Double.parseDouble(value), formatIndex, formatString).trim();
+                    }
                 } else {
                     thisStr = value;
                 }
                 thisStr = thisStr.replace("_", "").trim();
 
-                if(isDateFormat ){
-                    type = "DATETIME";isDateFormat = false;
-                    if(formatString != null && formatString.contains("%")){
+                if (isDateFormat) {
+                    type = "DATETIME";
+                    isDateFormat = false;
+                    if (formatString != null && formatString.contains("%")) {
                         type = getType(thisStr);
                     }
-                }else {
+                } else {
                     type = getType(thisStr);
                 }
                 break;
@@ -424,60 +459,67 @@ public class ExcelXlsxReader extends DefaultHandler {
                 thisStr = " ";
                 break;
         }
-        if(curRow==1){
+        if (curRow == 1) {
             addField(thisStr, null);
-        }else {
-            if(CollectionUtils.isEmpty(this.getFields())){
+        } else {
+            if (CollectionUtils.isEmpty(this.getFields())) {
                 throw new RuntimeException(Translator.get("i18n_excel_header_empty"));
             }
-            if(curCol >= this.fields.size()){
+            if (curCol >= this.fields.size()) {
                 return thisStr;
             }
-            if(curRow==2){
-                this.getFields().get(curCol).setFieldType(type);
-            }else {
-                if(type.equalsIgnoreCase("TEXT")){
+            if (curRow == 2) {
+                if (type != null) {
                     this.getFields().get(curCol).setFieldType(type);
                 }
-                if(type.equalsIgnoreCase("DOUBLE") && this.getFields().get(curCol).getFieldType().equalsIgnoreCase("LONG")){
-                    this.getFields().get(curCol).setFieldType(type);
-                }
-                if(type.equalsIgnoreCase("DATETIME")){
-                    this.getFields().get(curCol).setFieldType(type);
+            } else {
+                if (type != null) {
+                    if (type.equalsIgnoreCase("TEXT")) {
+                        this.getFields().get(curCol).setFieldType(type);
+                    }
+                    if (type.equalsIgnoreCase("DOUBLE") && this.getFields().get(curCol).getFieldType().equalsIgnoreCase("LONG")) {
+                        this.getFields().get(curCol).setFieldType(type);
+                    }
+                    if (type.equalsIgnoreCase("DATETIME")) {
+                        this.getFields().get(curCol).setFieldType(type);
+                    }
                 }
             }
         }
         return thisStr;
     }
 
-    private void addField(String columeName, Integer index){
-        TableFiled tableFiled = new TableFiled();
-        tableFiled.setFieldType("TEXT");
-        tableFiled.setFieldSize(65533);
-        tableFiled.setFieldName(columeName);
-        tableFiled.setRemarks(columeName);
-        if(index != null){
-            this.fields.add(index, tableFiled);
-        }else {
-            this.fields.add(tableFiled);
+    private void addField(String columeName, Integer index) {
+        TableField tableField = new TableField();
+        tableField.setFieldType("TEXT");
+        tableField.setFieldSize(65533);
+        tableField.setFieldName(columeName);
+        tableField.setRemarks(columeName);
+        if (index != null) {
+            this.fields.add(index, tableField);
+        } else {
+            this.fields.add(tableField);
         }
     }
-    private String getType(String thisStr){
-        if(totalRows==0){
+
+    private String getType(String thisStr) {
+        if (totalRows == 0) {
             return "TEXT";
         }
-        try{
-            if(thisStr.endsWith("%")){
-                thisStr = thisStr.substring(0, thisStr.length()-1);
-                thisStr = String.valueOf(Double.valueOf(thisStr)/100);
+
+        try {
+            if (thisStr.endsWith("%")) {
+                thisStr = thisStr.substring(0, thisStr.length() - 1);
+                thisStr = String.valueOf(Double.valueOf(thisStr) / 100);
             }
             Long.valueOf(thisStr);
             return "LONG";
-        }catch (Exception e){
+        } catch (Exception e) {
             try {
                 Double.valueOf(thisStr);
                 return "DOUBLE";
-            }catch (Exception ignore){ }
+            } catch (Exception ignore) {
+            }
         }
         return "TEXT";
     }

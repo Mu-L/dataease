@@ -6,6 +6,8 @@ module.exports = {
   /* for sso */
   IdTokenKey: 'IdToken',
   AccessTokenKey: 'AccessToken',
+  CASSESSION: 'JSESSIONID',
+  DownErrorKey: 'de-down-error-msg',
 
   /**
    * @type {boolean} true | false
@@ -19,7 +21,7 @@ module.exports = {
    */
   sidebarLogo: false,
   showSettings: true,
-  interruptTokenContineUrls: [
+  interruptTokenContinueUrls: [
     '/api/sys_msg/list/',
     '/dataset/taskLog/list/'
   ]

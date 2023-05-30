@@ -1,20 +1,25 @@
 <template>
-
-  <div class="filter-container" @dragstart="handleDragStart" @dragend="handleDragEnd()">
-
-    <div v-for="(item, key) in widgetSubjects" :key="key" class="widget-subject">
+  <div
+    class="filter-container"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd()"
+  >
+    <div
+      v-for="(item, key) in widgetSubjects"
+      :key="key"
+      class="widget-subject"
+    >
       <div class="filter-header">
         <div class="filter-header-text"> {{ key }} </div>
       </div>
-
       <div class="filter-widget-content">
         <div
           v-for="(widget, index) in item"
           :key="widget.widgetName+index"
           :data-id="widget.widgetName"
-          draggable
+          :draggable="(widget.widgetName !== 'buttonSureWidget' && widget.widgetName !== 'buttonResetWidget') || (widget.widgetName === 'buttonSureWidget' && !searchButtonExist) || (widget.widgetName === 'buttonResetWidget' && searchButtonExist && !resetButtonExist)"
           :data-index="index"
-          :class="'filter-widget '+ (widget.defaultClass || '')"
+          :class="('filter-widget '+ (widget.widgetName === 'buttonSureWidget' ? sureButtonClass : widget.widgetName === 'buttonResetWidget' ? resetButtonClass : widget.defaultClass))"
         >
           <div class="filter-widget-icon">
             <i :class="(widget.icon || 'el-icon-setting') + ' widget-icon-i'" />
@@ -35,19 +40,20 @@ import eventBus from '@/components/canvas/utils/eventBus'
 import { mapState } from 'vuex'
 export default {
   name: 'FilterGroup',
+  props: {
+    canvasId: {
+      type: String,
+      require: true
+    }
+  },
   data() {
     return {
       panelInfo: this.$store.state.panel.panelInfo,
-      //   widgetSubjects: {
-      //     '文本过滤组件': [
-      //       'mySelectWidget'
-      //     ]
-      //   }
+
       widgetSubjects: {
         '时间过滤组件': [
           'timeYearWidget',
           'timeMonthWidget',
-          //   'timeQuarterWidget',
           'timeDateWidget',
           'timeDateRangeWidget'
 
@@ -55,49 +61,79 @@ export default {
         '文本过滤组件': [
           'textSelectWidget',
           'textSelectGridWidget',
-          'textInputWidget'
+          'textInputWidget',
+          'textSelectTreeWidget'
         ],
         '数字过滤组件': [
           'numberSelectWidget',
           'numberSelectGridWidget',
           'numberRangeWidget'
+        ],
+        '按钮': [
+          'buttonSureWidget',
+          'buttonResetWidget'
         ]
-        // '按钮': [
-        //   'buttonSureWidget'
-        // ]
       }
     }
   },
   computed: {
     ...mapState([
       'canvasStyleData',
-      'curCanvasScale'
-    ])
-  },
-  created() {
-    for (const key in this.widgetSubjects) {
-      const widgetNames = this.widgetSubjects[key]
-      this.widgetSubjects[key] = widgetNames.map(widgetName => {
-        const widget = ApplicationContext.getService(widgetName)
-        const result = { widgetName: widgetName }
-        Object.assign(result, widget.getLeftPanel())
-        return result
-      })
+      'curCanvasScaleMap',
+      'componentData'
+    ]),
+    curCanvasScaleSelf() {
+      return this.curCanvasScaleMap[this.canvasId]
+    },
+    searchButtonExist() {
+      return this.componentData && this.componentData.some(component => component.type === 'custom-button' && component.serviceName === 'buttonSureWidget')
+    },
+    resetButtonExist() {
+      return this.componentData && this.componentData.some(component => component.type === 'custom-button' && component.serviceName === 'buttonResetWidget')
+    },
+    sureButtonClass() {
+      return this.searchButtonExist ? 'button-disable-filter' : 'time-filter'
+    },
+    resetButtonClass() {
+      return (this.searchButtonExist && !this.resetButtonExist) ? 'time-filter' : 'button-disable-filter'
     }
-    // console.log('this.widgetSubjects=>' + JSON.stringify(this.widgetSubjects))
+
+  },
+
+  created() {
+    this.init()
   },
 
   methods: {
+    init() {
+      for (const key in this.widgetSubjects) {
+        const widgetNames = this.widgetSubjects[key]
+        this.widgetSubjects[key] = widgetNames.map(widgetName => {
+          const widget = ApplicationContext.getService(widgetName)
+          const result = { widgetName: widgetName }
+          Object.assign(result, widget.getLeftPanel())
+          if (this.searchButtonExist && widgetName === 'buttonSureWidget') {
+            result.defaultClass = 'button-disable-filter'
+          }
+          if (!this.searchButtonExist && widgetName === 'buttonResetWidget') {
+            result.defaultClass = ' button-disable-filter'
+          }
+          return result
+        })
+      }
+    },
     handleDragStart(ev) {
       // 记录拖拽信息
       const dragComponentInfo = deepCopy(ApplicationContext.getService(ev.target.dataset.id).getDrawPanel())
       // 设置矩阵标记点
       dragComponentInfo.x = 1
       dragComponentInfo.y = 1
-      dragComponentInfo.sizex = Math.round(dragComponentInfo.style.width / this.curCanvasScale.matrixStyleOriginWidth)
-      dragComponentInfo.sizey = Math.round(dragComponentInfo.style.height / this.curCanvasScale.matrixStyleOriginHeight)
+      dragComponentInfo.sizex = Math.round(dragComponentInfo.style.width / this.curCanvasScaleSelf.matrixStyleOriginWidth)
+      dragComponentInfo.sizey = Math.round(dragComponentInfo.style.height / this.curCanvasScaleSelf.matrixStyleOriginHeight)
       dragComponentInfo.auxiliaryMatrix = this.canvasStyleData.auxiliaryMatrix
       dragComponentInfo.moveStatus = 'start'
+      dragComponentInfo['canvasId'] = 'canvas-main'
+      dragComponentInfo['canvasPid'] = '0'
       this.$store.commit('setDragComponentInfo', dragComponentInfo)
       ev.dataTransfer.effectAllowed = 'copy'
       const dataTrans = {
@@ -172,6 +208,16 @@ export default {
     border-radius: 10px;
     cursor: pointer;
     overflow: hidden;
+  }
+
+  .button-disable-filter {
+    background-color: #ecf5ff;
+    .filter-widget-icon {
+        color: #8cc5ff;
+    }
+    .filter-widget-text {
+        color: var(--TextActive, #8cc5ff);
+    }
   }
 
   .time-filter {

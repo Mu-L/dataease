@@ -11,6 +11,7 @@ import io.dataease.auth.service.AuthUserService;
 import io.dataease.auth.util.JWTUtils;
 import io.dataease.commons.utils.BeanUtils;
 import io.dataease.commons.utils.LogUtil;
+import io.dataease.commons.utils.TokenCacheUtils;
 import io.dataease.listener.util.CacheUtils;
 import org.apache.shiro.authc.*;
 import org.apache.shiro.authz.AuthorizationInfo;
@@ -26,34 +27,32 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-
-
 @Component
 public class F2CRealm extends AuthorizingRealm {
 
     @Autowired
-    @Lazy //shiro组件加载过早 让authUserService等一等再注入 否则 注入的可能不是代理对象
+    @Lazy // shiro组件加载过早 让authUserService等一等再注入 否则 注入的可能不是代理对象
     private AuthUserService authUserService;
-
 
     @Override
     public boolean supports(AuthenticationToken token) {
         return token instanceof JWTToken || token instanceof ASKToken;
     }
 
-    //验证资源权限
+    // 验证资源权限
     @Override
     protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
-        Long userId = JWTUtils.tokenInfoByToken(principals.toString()).getUserId();
+        CurrentUserDto userDto = (CurrentUserDto) principals.getPrimaryPrincipal();
         SimpleAuthorizationInfo simpleAuthorizationInfo = new SimpleAuthorizationInfo();
-        Set<String> role = new HashSet<>(authUserService.roles(userId));
+        Set<String> role = new HashSet<>(
+                userDto.getRoles().stream().map(item -> (item.getId() + "")).collect(Collectors.toSet()));
         simpleAuthorizationInfo.addRoles(role);
-        Set<String> permission = new HashSet<>(authUserService.permissions(userId));
+        Set<String> permission = new HashSet<>(userDto.getPermissions());
         simpleAuthorizationInfo.addStringPermissions(permission);
         return simpleAuthorizationInfo;
     }
 
-    //验证登录权限
+    // 验证登录权限
 
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken auth) throws AuthenticationException {
@@ -72,11 +71,9 @@ public class F2CRealm extends AuthorizingRealm {
             return new SimpleAuthenticationInfo(currentUserDto, signature, "f2cReam");
         }
 
-
-
         try {
             CacheUtils.get("lic_info", "lic");
-        }catch (Exception e) {
+        } catch (Exception e) {
             LogUtil.error(e);
             throw new AuthenticationException("license error");
         }
@@ -87,7 +84,10 @@ public class F2CRealm extends AuthorizingRealm {
             token = (String) auth.getCredentials();
             // 解密获得username，用于和数据库进行对比
             tokenInfo = JWTUtils.tokenInfoByToken(token);
-        }catch (Exception e) {
+            if (TokenCacheUtils.invalid(token)) {
+                throw new AuthenticationException("token invalid");
+            }
+        } catch (Exception e) {
             throw new AuthenticationException(e);
         }
 
@@ -104,7 +104,7 @@ public class F2CRealm extends AuthorizingRealm {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        if (! JWTUtils.verify(token, tokenInfo, pass)) {
+        if (!JWTUtils.verify(token, tokenInfo, pass)) {
             throw new AuthenticationException("Username or password error");
         }
 
@@ -117,7 +117,7 @@ public class F2CRealm extends AuthorizingRealm {
         if (user == null) {
             throw new AuthenticationException("User didn't existed!");
         }
-        if (user.getEnabled()==0) {
+        if (user.getEnabled() == 0) {
             throw new AuthenticationException("User is valid!");
         }
         return user;
