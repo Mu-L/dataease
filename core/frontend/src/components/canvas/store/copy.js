@@ -91,6 +91,7 @@ export default {
         component['canvasId'] = 'canvas-main'
         component['canvasPid'] = '0'
         state.copyData = {
+          dataFrom: 'multiplexing',
           data: component,
           index: index
         }
@@ -107,9 +108,16 @@ export default {
       state.isCut = false
     },
 
-    paste(state, needAdaptor) {
+    async paste(state, needAdaptor) {
       if (!state.copyData) {
         return
+      }
+      let targetComponentData
+
+      if (state.copyData.dataFrom === 'multiplexing') {
+        targetComponentData = state.previewComponentData
+      } else {
+        targetComponentData = state.componentData
       }
       const data = state.copyData.data
       // 仪表板复制的组件默认不在移动端部署中mobileSelected = false
@@ -118,12 +126,11 @@ export default {
         data.style.top = Number(data.style.top) + 20
         data.style.left = Number(data.style.left) + 20
       }
-      data.id = generateID()
       // 如果是用户视图 测先进行底层复制
       if (data.type === 'view') {
         chartCopy(data.propValue.viewId, state.panel.panelInfo.id).then(res => {
           const newView = deepCopy(data)
-          Vue.set(newView, 'needAdaptor', store.state.multiplexingStyleAdapt?needAdaptor:false)
+          Vue.set(newView, 'needAdaptor', store.state.multiplexingStyleAdapt ? needAdaptor : false)
           newView.id = uuid.v1()
           newView.propValue.viewId = res.data
           newView['canvasId'] = data.canvasId
@@ -131,12 +138,13 @@ export default {
           if (newView.filters && newView.filters.length) {
             newView.filters = []
           }
-          if(needAdaptor && store.state.multiplexingStyleAdapt){
+          if (needAdaptor && store.state.multiplexingStyleAdapt) {
             adaptCurThemeCommonStyle(newView)
           }
           store.commit('addComponent', { component: newView })
         })
       } else if (data.type === 'de-tabs') {
+        const newTabComponents = []
         const sourceAndTargetIds = {}
         const newCop = deepCopy(data)
         newCop.id = uuid.v1()
@@ -145,23 +153,44 @@ export default {
             const newViewId = uuid.v1()
             sourceAndTargetIds[item.content.propValue.viewId] = newViewId
             item.content.propValue.viewId = newViewId
-            Vue.set(item.content, 'needAdaptor', store.state.multiplexingStyleAdapt?needAdaptor:false)
+            Vue.set(item.content, 'needAdaptor', store.state.multiplexingStyleAdapt ? needAdaptor : false)
             if (item.content.filters && item.content.filters.length) {
               item.content.filters = []
             }
+          } else if (item.content && item.content.type === 'canvas') {
+            const oldTabCanvasId = data.id + '-' + item.name
+            const newTabCanvasId = newCop.id + '-' + item.name
+            targetComponentData.forEach(component => {
+              if (component.canvasId === oldTabCanvasId) {
+                const newTabCop = deepCopy(component)
+                newTabCop.id = uuid.v1()
+                newTabCop.canvasId = newTabCanvasId
+                if (component.component === 'user-view') {
+                  newTabCop.propValue.viewId = uuid.v1()
+                  sourceAndTargetIds[component.propValue.viewId] = newTabCop.propValue.viewId
+                }
+                if (needAdaptor && store.state.multiplexingStyleAdapt) {
+                  adaptCurThemeCommonStyle(newTabCop, 'copy')
+                }
+                newTabComponents.push(newTabCop)
+              }
+            })
           }
         })
-        chartBatchCopy({ 'sourceAndTargetIds': sourceAndTargetIds }, state.panel.panelInfo.id).then((rsp) => {
-          if(needAdaptor && store.state.multiplexingStyleAdapt){
-            adaptCurThemeCommonStyle(newCop,'copy')
+        await chartBatchCopy({ 'sourceAndTargetIds': sourceAndTargetIds }, state.panel.panelInfo.id).then((rsp) => {
+          if (needAdaptor && store.state.multiplexingStyleAdapt) {
+            adaptCurThemeCommonStyle(newCop, 'copy')
           }
           store.commit('addComponent', { component: newCop })
         })
+        if (newTabComponents) {
+          store.commit('addBatchComponent', newTabComponents)
+        }
       } else {
         const newCop = deepCopy(data)
         newCop.id = uuid.v1()
-        if(needAdaptor && store.state.multiplexingStyleAdapt) {
-          adaptCurThemeCommonStyle(newCop,'copy')
+        if (needAdaptor && store.state.multiplexingStyleAdapt) {
+          adaptCurThemeCommonStyle(newCop, 'copy')
         }
         store.commit('addComponent', { component: newCop })
       }

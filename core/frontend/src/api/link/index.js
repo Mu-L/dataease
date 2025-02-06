@@ -50,6 +50,14 @@ export function switchEnablePwd(data) {
   })
 }
 
+export function switchEnableTicket(data) {
+  return request({
+    url: 'api/link/enableTicket',
+    method: 'post',
+    data
+  })
+}
+
 export function viewLinkLog(data) {
   return request({
     url: 'api/link/viewLog',
@@ -66,9 +74,31 @@ export function loadGenerate(resourceId) {
   })
 }
 
-export function loadResource(resourceId,userId) {
+export function loadTicketApi(resourceId) {
   return request({
-    url: 'api/link/resourceDetail/' + resourceId+'/'+ userId,
+    url: 'api/link/currentTicket/' + resourceId,
+    method: 'post'
+  })
+}
+
+export function saveTicketApi(data) {
+  return request({
+    url: 'api/link/saveTicket',
+    method: 'post',
+    data
+  })
+}
+export function delTicketApi(data) {
+  return request({
+    url: 'api/link/delTicket',
+    method: 'post',
+    data
+  })
+}
+
+export function loadResource(resourceId, userId) {
+  return request({
+    url: 'api/link/resourceDetail/' + resourceId + '/' + userId,
     method: 'get'
   })
 }

@@ -26,7 +26,7 @@
             class="form-item"
           >
             <el-input
-              v-model="titleForm.title"
+              v-model.trim="titleForm.title"
               size="mini"
               :placeholder="$t('chart.title')"
               clearable
@@ -51,6 +51,20 @@
                 :value="option.value"
               />
             </el-select>
+            <el-tooltip
+              class="item"
+              effect="dark"
+              placement="bottom"
+            >
+              <div
+                slot="content"
+                v-html="$t('chart.font_family_tip')"
+              />
+              <i
+                class="el-icon-info"
+                style="cursor: pointer;color: #606266;margin-left: 4px;"
+              />
+            </el-tooltip>
           </el-form-item>
           <el-form-item
             v-show="showProperty('fontSize')"
@@ -307,7 +321,7 @@ export default {
     },
     init() {
       const arr = []
-      for (let i = 10; i <= 60; i = i + 2) {
+      for (let i = 6; i <= 60; i = i + 2) {
         arr.push({
           name: i + '',
           value: i + ''
@@ -409,4 +423,12 @@ span {
 .dialog-css ::v-deep .el-dialog__body {
   padding: 10px 20px 20px;
 }
+
+.form-item ::v-deep .el-checkbox__label {
+  font-size: 12px;
+}
+.form-item ::v-deep .el-radio__label {
+  font-size: 12px;
+}
+
 </style>

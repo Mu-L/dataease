@@ -13,34 +13,32 @@
       :title="$t('user.change_password')"
       :show-close="false"
     >
-      <PasswordUpdateForm oldPwd="dataease" />
+      <PasswordUpdateForm />
     </el-dialog>
+    <ExportExcel ref="ExportExcelRef" />
   </div>
 </template>
 
 <script>
+import ExportExcel from '@/views/dataset/exportExcel/index.vue'
 import PluginCom from '@/views/system/plugin/PluginCom'
 import { mapState } from 'vuex'
 import PasswordUpdateForm from '@/views/system/user/PasswordUpdateForm.vue'
+import bus from '@/utils/bus'
 
 export default {
   name: 'App',
-  components: { PluginCom, PasswordUpdateForm },
-  computed: {
-    ...mapState('user', [
-      'passwordModified',
-    ])
-  },
+  components: { PluginCom, PasswordUpdateForm, ExportExcel },
   data() {
     return {
-      showPasswordModifiedDialog: false
+      showPasswordModifiedDialog: false,
+      defaultPwd: 'dataease'
     }
   },
-  mounted() {
-    const passwordModified = JSON.parse(localStorage.getItem('passwordModified'))
-    if (typeof passwordModified === 'boolean') {
-      this.$store.commit('user/SET_PASSWORD_MODIFIED', passwordModified)
-    }
+  computed: {
+    ...mapState('user', [
+      'passwordModified'
+    ])
   },
   watch: {
     passwordModified: {
@@ -48,6 +46,22 @@ export default {
         this.showPasswordModifiedDialog = !val
       },
       immediate: true
+    }
+  },
+  mounted() {
+    bus.$on('data-export-center', this.downloadClick)
+    const passwordModified = JSON.parse(localStorage.getItem('passwordModified'))
+    this.defaultPwd = localStorage.getItem('defaultPwd')
+    if (typeof passwordModified === 'boolean') {
+      this.$store.commit('user/SET_PASSWORD_MODIFIED', passwordModified)
+    }
+  },
+  beforeDestroy() {
+    bus.$off('data-export-center', this.downloadClick)
+  },
+  methods: {
+    downloadClick() {
+      this.$refs.ExportExcelRef.init()
     }
   }
 }

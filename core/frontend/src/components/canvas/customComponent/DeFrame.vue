@@ -10,7 +10,7 @@
         :src="element.frameLinks.src"
         scrolling="auto"
         frameborder="0"
-        class="main-frame"
+        class="main-frame main-de-iframe "
         @load="loaded"
         @error="onError"
       />
@@ -45,7 +45,7 @@
       class="info-class"
     >
       <span>{{ $t('panel.link_add_tips_pre') }}</span>
-      <i class="icon iconfont icon-chaolianjie"/>
+      <i class="icon iconfont icon-chaolianjie" />
       <span>{{ $t('panel.web_add_tips_suf') }}</span>
     </div>
   </el-row>
@@ -103,9 +103,18 @@ export default {
   mounted() {
     bus.$on('frameLinksChange-' + this.element.id, this.frameLinksChange)
     eventBus.$on('startMoveIn', this.frameLinksChange)
+    window.addEventListener('click', function(event) {
+      const iframes = document.getElementsByClassName('main-de-iframe')
+      if (iframes) {
+        iframes.forEach(function(iframe) {
+          iframe.contentWindow.postMessage('closeFilterComponent', '*')
+        })
+      }
+    })
   },
   beforeDestroy() {
     bus.$off('frameLinksChange-' + this.element.id, this.frameLinksChange)
+    eventBus.$off('startMoveIn', this.frameLinksChange)
   },
   methods: {
     frameLinksChange() {

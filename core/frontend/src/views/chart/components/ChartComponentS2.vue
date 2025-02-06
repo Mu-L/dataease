@@ -15,6 +15,7 @@
       v-if="chart.type"
       v-show="title_show"
       ref="title"
+      :class="titleIsRight"
       :style="title_class"
       style="cursor: default;display: block;"
     >
@@ -33,24 +34,24 @@
     <div
       ref="tableContainer"
       style="width: 100%;overflow: hidden;"
-      :style="{background:container_bg_class.background}"
+      :style="{background:container_bg_class.background, height: chartHeight}"
     >
       <div
         v-if="chart.type === 'table-normal'"
         :id="chartId"
-        style="width: 100%;overflow: hidden;"
+        style="position: relative;width: 100%;overflow: hidden;"
         :class="chart.drill ? 'table-dom-normal-drill' : 'table-dom-normal'"
       />
       <div
         v-if="chart.type === 'table-info'"
         :id="chartId"
-        style="width: 100%;overflow: hidden;"
+        style="position: relative;width: 100%;overflow: hidden;"
         :class="chart.drill ? (showPage ? 'table-dom-info-drill' : 'table-dom-info-drill-pull') : (showPage ? 'table-dom-info' : 'table-dom-info-pull')"
       />
       <div
         v-if="chart.type === 'table-pivot'"
         :id="chartId"
-        style="width: 100%;overflow: hidden;"
+        style="position: relative;width: 100%;overflow: hidden;"
         class="table-dom-normal"
       />
       <el-row
@@ -67,8 +68,8 @@
           >
             {{ $t('chart.total') }}
             <span>{{
-                (chart.datasetMode === 0 && !not_support_page_dataset.includes(chart.datasourceType)) ? chart.totalItems : ((chart.data && chart.data.tableRow) ? chart.data.tableRow.length : 0)
-              }}</span>
+              ((chart.datasetMode === 0 && !not_support_page_dataset.includes(chart.datasourceType) || chart.datasetMode === 1)) ? chart.totalItems : ((chart.data && chart.data.tableRow) ? chart.data.tableRow.length : 0)
+            }}</span>
             {{ $t('chart.items') }}
           </span>
           <de-pagination
@@ -97,10 +98,13 @@ import ViewTrackBar from '@/components/canvas/components/editor/ViewTrackBar'
 import { getRemark, hexColorToRGBA } from '@/views/chart/chart/util'
 import { baseTableInfo, baseTableNormal, baseTablePivot } from '@/views/chart/chart/table/table-info'
 import TitleRemark from '@/views/chart/view/TitleRemark'
-import { DEFAULT_TITLE_STYLE, NOT_SUPPORT_PAGE_DATASET } from '@/views/chart/chart/chart'
+import { CHART_CONT_FAMILY_MAP, DEFAULT_TITLE_STYLE, NOT_SUPPORT_PAGE_DATASET } from '@/views/chart/chart/chart'
 import ChartTitleUpdate from './ChartTitleUpdate.vue'
 import { mapState } from 'vuex'
 import DePagination from '@/components/deCustomCm/pagination.js'
+import bus from '@/utils/bus'
+import { getRange } from '@/utils/timeUitils'
+import { deepCopy } from '@/components/canvas/utils/utils'
 
 export default {
   name: 'ChartComponentS2',
@@ -132,11 +136,14 @@ export default {
       type: Number,
       required: false,
       default: 0
+    },
+    inScreen: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
     return {
-      myChart: null,
       chartId: uuid.v1(),
       showTrackBar: true,
       trackBarStyle: {
@@ -170,7 +177,6 @@ export default {
       },
       tableData: [],
       showPage: false,
-      scrollTimer: null,
       scrollTop: 0,
       remarkCfg: {
         show: false,
@@ -179,11 +185,15 @@ export default {
       totalStyle: {
         color: '#606266'
       },
-      not_support_page_dataset: NOT_SUPPORT_PAGE_DATASET
+      not_support_page_dataset: NOT_SUPPORT_PAGE_DATASET,
+      resizeTimer: null
     }
   },
 
   computed: {
+    titleIsRight() {
+      return this.title_class?.textAlign === 'right' && 'title-is-right'
+    },
     scale() {
       return this.previewCanvasScale.scalePointWidth
     },
@@ -221,26 +231,18 @@ export default {
       handler(newVal, oldVla) {
         this.initData()
         this.initTitle()
-        this.calcHeightDelay()
-        new Promise((resolve) => {
-          resolve()
-        }).then(() => {
-          this.drawView()
-        })
+        this.calcHeightRightNow(this.drawView)
       },
       deep: true
-    },
-    resize() {
-      this.drawEcharts()
     }
   },
   mounted() {
     this.preDraw()
   },
   beforeDestroy() {
-    clearInterval(this.scrollTimer)
-    window.removeEventListener('resize', this.onResize)
-    this.myChart.destroy()
+    window.removeEventListener('resize', this.chartResize)
+    this.myChart?.facet.timer?.stop()
+    this.myChart?.destroy?.()
     this.myChart = null
   },
   methods: {
@@ -250,9 +252,12 @@ export default {
       if (this.chart.data && this.chart.data.fields) {
         this.fields = JSON.parse(JSON.stringify(this.chart.data.fields))
         const attr = JSON.parse(this.chart.customAttr)
+        if (this.currentPage.pageSize < attr.size.tablePageSize) {
+          this.currentPage.page = 1
+        }
         this.currentPage.pageSize = parseInt(attr.size.tablePageSize ? attr.size.tablePageSize : 20)
         data = JSON.parse(JSON.stringify(this.chart.data.tableRow))
-        if (this.chart.datasetMode === 0 && !NOT_SUPPORT_PAGE_DATASET.includes(this.chart.datasourceType)) {
+        if ((this.chart.datasetMode === 0 && !NOT_SUPPORT_PAGE_DATASET.includes(this.chart.datasourceType) || this.chart.datasetMode === 1)) {
           if (this.chart.type === 'table-info' && (attr.size.tablePageMode === 'page' || !attr.size.tablePageMode) && this.chart.totalItems > this.currentPage.pageSize) {
             this.currentPage.show = this.chart.totalItems
             this.showPage = true
@@ -275,23 +280,13 @@ export default {
       this.tableData = data
     },
     preDraw() {
-      this.onResize()
-      window.addEventListener('resize', this.onResize)
-    },
-    onResize() {
       this.initData()
       this.initTitle()
-      this.calcHeightDelay()
-      new Promise((resolve) => {
-        resolve()
-      }).then(() => {
-        this.drawView()
-      })
+      this.calcHeightRightNow(this.drawView)
+      window.addEventListener('resize', this.chartResize)
     },
     drawView() {
       const chart = this.chart
-      // type
-      // if (chart.data) {
       this.antVRenderStatus = true
       if (!chart.data || (!chart.data.data && !chart.data.series)) {
         chart.data = {
@@ -303,17 +298,17 @@ export default {
           ]
         }
       }
+      if (this.myChart) {
+        this.myChart?.facet.timer?.stop()
+        this.myChart.destroy()
+      }
       if (chart.type === 'table-info') {
-        this.myChart = baseTableInfo(this.myChart, this.chartId, chart, this.antVAction, this.tableData, this.currentPage)
+        this.myChart = baseTableInfo(this.chartId, chart, this.antVAction, this.tableData, this.currentPage, this, this.columnResize)
       } else if (chart.type === 'table-normal') {
-        this.myChart = baseTableNormal(this.myChart, this.chartId, chart, this.antVAction, this.tableData)
+        this.myChart = baseTableNormal(this.chartId, chart, this.antVAction, this.tableData, this, this.columnResize)
       } else if (chart.type === 'table-pivot') {
-        this.myChart = baseTablePivot(this.myChart, this.chartId, chart, this.antVAction, this.tableHeaderClick, this.tableData)
-      } else {
-        if (this.myChart) {
-          this.antVRenderStatus = false
-          this.myChart.destroy()
-        }
+        this.myChart = baseTablePivot(this.chartId, chart, this.antVAction, this.tableHeaderClick, this.tableData)
+        this.$store.dispatch('chart/setTableInstance', { viewId: this.chart.id, tableInstance: this.myChart })
       }
 
       if (this.myChart && this.searchCount > 0) {
@@ -339,11 +334,12 @@ export default {
       if (this.chart.type === 'table-pivot') {
         rowData = { ...meta.rowQuery, ...meta.colQuery }
         rowData[meta.valueField] = meta.fieldValue
-      } else if (this.showPage && (this.chart.datasetMode === 1 || (this.chart.datasetMode === 0 && this.not_support_page_dataset.includes(this.chart.datasourceType)))) {
-        const rowIndex = (this.currentPage.page - 1) * this.currentPage.pageSize + meta.rowIndex
-        rowData = this.chart.data.tableRow[rowIndex]
       } else {
-        rowData = this.chart.data.tableRow[meta.rowIndex]
+        rowData = this.myChart.dataSet.getRowData(meta)
+      }
+      // 忽略汇总表总计行
+      if (rowData.SUMMARY) {
+        return
       }
       const dimensionList = []
       for (const key in rowData) {
@@ -396,16 +392,45 @@ export default {
       }
     },
     chartResize() {
-      this.initData()
-      this.initTitle()
-      this.calcHeightDelay()
-      new Promise((resolve) => {
-        resolve()
-      }).then(() => {
-        this.drawView()
-      })
+      this.resizeTimer && clearTimeout(this.resizeTimer)
+      this.resizeTimer = setTimeout(() => {
+        this.initData()
+        this.initTitle()
+        this.calcHeightRightNow((width, height) => {
+          if (!this.myChart) {
+            return
+          }
+          const { width: chartWidth, height: chartHeight } = this.myChart.options
+          if (width !== chartWidth || height !== chartHeight) {
+            this.myChart?.changeSheetSize(width, height)
+            // 大小变化或者tab变化重新渲染
+            if (chartWidth || chartHeight || !(chartHeight || chartWidth)) {
+              this.myChart.facet.timer?.stop()
+              this.myChart.render()
+            }
+            this.initScroll()
+          }
+        })
+      }, 100)
     },
     trackClick(trackAction) {
+      const idTypeMap = this.chart.data.fields.reduce((pre, next) => {
+        pre[next['id']] = next['deType']
+        return pre
+      }, {})
+
+      const idDateStyleMap = this.chart.data.fields.reduce((pre, next) => {
+        pre[next['id']] = next['dateStyle']
+        return pre
+      }, {})
+
+      const dimensionListAdaptor = deepCopy(this.pointParam.data.dimensionList)
+      dimensionListAdaptor.forEach(dimension => {
+        // deType === 1 表示是时间类型
+        if (idTypeMap[dimension.id] === 1) {
+          dimension.value = getRange(dimension.value, idDateStyleMap[dimension.id])
+        }
+      })
       const param = this.pointParam
       if (!param || !param.data || !param.data.dimensionList) {
         // 地图提示没有关联字段 其他没有维度信息的 直接返回
@@ -418,19 +443,20 @@ export default {
         option: 'linkage',
         name: this.pointParam.data.name,
         viewId: this.chart.id,
-        dimensionList: this.pointParam.data.dimensionList,
+        dimensionList: dimensionListAdaptor,
         quotaList: this.pointParam.data.quotaList
       }
       const jumpParam = {
         option: 'jump',
         name: this.pointParam.data.name,
         viewId: this.chart.id,
-        dimensionList: this.pointParam.data.dimensionList,
+        dimensionList: dimensionListAdaptor,
         quotaList: this.pointParam.data.quotaList,
         sourceType: this.pointParam.data.sourceType
       }
       switch (trackAction) {
         case 'drill':
+          this.currentPage.page = 1
           this.$emit('onChartClick', this.pointParam)
           break
         case 'linkage':
@@ -459,7 +485,7 @@ export default {
             this.$refs.title.style.fontSize = customStyle.text.fontSize + 'px'
           }
 
-          this.title_class.fontFamily = customStyle.text.fontFamily ? customStyle.text.fontFamily : DEFAULT_TITLE_STYLE.fontFamily
+          this.title_class.fontFamily = customStyle.text.fontFamily ? CHART_CONT_FAMILY_MAP[customStyle.text.fontFamily] : DEFAULT_TITLE_STYLE.fontFamily
           this.title_class.letterSpacing = (customStyle.text.letterSpace ? customStyle.text.letterSpace : DEFAULT_TITLE_STYLE.letterSpace) + 'px'
           this.title_class.textShadow = customStyle.text.fontShadow ? '2px 2px 4px' : 'none'
           // 表格总计与分页颜色，取标题颜色
@@ -475,27 +501,22 @@ export default {
       this.initRemark()
     },
 
-    calcHeightRightNow() {
+    calcHeightRightNow(callback) {
       this.$nextTick(() => {
         if (this.$refs.chartContainer) {
-          const currentHeight = this.$refs.chartContainer.offsetHeight
+          const { offsetWidth, offsetHeight } = this.$refs.chartContainer
+          let titleHeight = 0
           if (this.$refs.title) {
-            const titleHeight = this.$refs.title.offsetHeight
-            this.chartHeight = (currentHeight - titleHeight) + 'px'
-            this.$refs.tableContainer.style.height = this.chartHeight
+            titleHeight = this.$refs.title.offsetHeight
           }
+          this.chartHeight = (offsetHeight - titleHeight) + 'px'
+          this.$nextTick(() => callback?.(offsetWidth, offsetHeight - titleHeight))
         }
       })
     },
-    calcHeightDelay() {
-      this.calcHeightRightNow()
-      setTimeout(() => {
-        this.calcHeightRightNow()
-      }, 100)
-    },
     pageChange(val) {
       this.currentPage.pageSize = val
-      if (this.chart.datasetMode === 0 && !NOT_SUPPORT_PAGE_DATASET.includes(this.chart.datasourceType)) {
+      if ((this.chart.datasetMode === 0 && !NOT_SUPPORT_PAGE_DATASET.includes(this.chart.datasourceType)) || this.chart.datasetMode === 1) {
         this.$emit('onPageChange', this.currentPage)
       } else {
         this.initData()
@@ -505,7 +526,7 @@ export default {
 
     pageClick(val) {
       this.currentPage.page = val
-      if (this.chart.datasetMode === 0 && !NOT_SUPPORT_PAGE_DATASET.includes(this.chart.datasourceType)) {
+      if ((this.chart.datasetMode === 0 && !NOT_SUPPORT_PAGE_DATASET.includes(this.chart.datasourceType)) || this.chart.datasetMode === 1) {
         this.$emit('onPageChange', this.currentPage)
       } else {
         this.initData()
@@ -522,34 +543,84 @@ export default {
     },
 
     initScroll() {
-      clearInterval(this.scrollTimer)
-      // 首先回到最顶部，然后计算行高*行数作为top，最后判断：如果top<数据量*行高，继续滚动，否则回到顶部
       const customAttr = JSON.parse(this.chart.customAttr)
       const senior = JSON.parse(this.chart.senior)
-
-      this.scrollTop = 0
-      this.myChart.store.set('scrollY', this.scrollTop)
-      this.myChart.render()
-
-      if (senior && senior.scrollCfg && senior.scrollCfg.open && (this.chart.type === 'table-normal' || (this.chart.type === 'table-info' && !this.showPage))) {
+      if (senior?.scrollCfg?.open) {
+        if (this.chart.type === 'table-info' && this.showPage) {
+          return
+        }
+        // 防止多次渲染
+        this.myChart.facet.timer?.stop()
+        if (this.myChart.store.get('scrollY') !== 0) {
+          this.myChart.store.set('scrollY', 0)
+          this.myChart.render()
+        }
+        // 平滑滚动，兼容原有的滚动速率设置
+        // 假设原设定为 2 行间隔 2 秒，换算公式为: 滚动到底部的时间 = 未展示部分行数 / 2行 * 2秒
+        const offsetHeight = document.getElementById(this.chartId).offsetHeight
+        // 没显示就不滚了
+        if (!offsetHeight) {
+          return
+        }
         const rowHeight = customAttr.size.tableItemHeight
         const headerHeight = customAttr.size.tableTitleHeight
-
-        this.scrollTimer = setInterval(() => {
-          const top = rowHeight * senior.scrollCfg.row
-          const dom = document.getElementById(this.chartId)
-          if ((dom.offsetHeight - headerHeight + this.scrollTop) < rowHeight * this.chart.data.tableRow.length) {
-            this.scrollTop += top
-          } else {
-            this.scrollTop = 0
+        let duration, scrollHeight
+        if (this.chart.type === 'table-pivot') {
+          const totalHeight = this.myChart.facet.viewCellHeights.getTotalHeight()
+          const viewHeight = this.myChart.facet.rowHeader.cfg.viewportHeight
+          if (totalHeight <= viewHeight) {
+            return
           }
-          this.myChart.store.set('scrollY', this.scrollTop)
-          this.myChart.render()
-        }, senior.scrollCfg.interval)
+          scrollHeight = totalHeight - viewHeight
+          const scrollViewCount = (totalHeight - viewHeight) / rowHeight
+          duration = scrollViewCount / senior.scrollCfg.row * senior.scrollCfg.interval
+        } else {
+          const scrollBarSize = this.myChart.theme.scrollBar.size
+          scrollHeight = rowHeight * this.chart.data.tableRow.length + headerHeight - offsetHeight + scrollBarSize
+          // 显示内容没撑满
+          if (scrollHeight < scrollBarSize) {
+            return
+          }
+          const viewHeight = offsetHeight - headerHeight - scrollBarSize
+          const scrollViewCount = this.chart.data.tableRow.length - viewHeight / rowHeight
+          duration = scrollViewCount / senior.scrollCfg.row * senior.scrollCfg.interval
+        }
+        this.myChart.facet.scrollWithAnimation({
+          offsetY: {
+            value: scrollHeight,
+            animate: false
+          }
+        }, duration, this.initScroll)
       }
     },
     initRemark() {
       this.remarkCfg = getRemark(this.chart)
+    },
+    columnResize(resizeColumn) {
+      // 从头开始滚动
+      this.myChart.facet.timer?.stop()
+      this.$nextTick(this.initScroll)
+      if (!this.inScreen) {
+        // 预览/全屏预览不保存宽度
+        return
+      }
+      const size = JSON.parse(this.chart.customAttr).size
+      if (size.tableColumnMode !== 'field') {
+        return
+      }
+      const fieldId = resizeColumn.info.meta.field
+      const containerWidth = document.getElementById(this.chartId).offsetWidth
+      const column = size.tableFieldWidth?.find(i => i.fieldId === fieldId)
+      let tableWidth
+      const width = parseFloat((resizeColumn.info.resizedWidth / containerWidth * 100).toFixed(2))
+      if (column) {
+        column.width = width
+        tableWidth = [...size.tableFieldWidth]
+      } else {
+        const tmp = { fieldId, width }
+        tableWidth = size.tableFieldWidth?.length ? [...size.tableFieldWidth, tmp] : [tmp]
+      }
+      bus.$emit('set-table-column-width', tableWidth)
     }
   }
 }

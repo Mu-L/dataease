@@ -138,7 +138,7 @@ export function fieldList(id, showLoading = true) {
 }
 
 export function fieldListWithPermission(id, showLoading = true) {
-  //初始模板中的过滤组件无需走后台
+  // 初始模板中的过滤组件无需走后台
   if (id.indexOf('no_auth') > -1) {
     return new Promise(function(resolve) {
       resolve({
@@ -258,15 +258,6 @@ export function datasetTaskList(page, size, data, loading) {
   })
 }
 
-export function datasetRowPermissionsList(datasetId, page, size, data, loading) {
-  return request({
-    url: 'plugin/dataset/rowPermissions/pageList/' + datasetId + '/' + page + '/' + size,
-    method: 'post',
-    data,
-    loading: loading
-  })
-}
-
 export function checkCustomDs() {
   return request({
     url: '/system/checkCustomDs',
@@ -298,9 +289,27 @@ export function exportDataset(data) {
     url: 'dataset/table/exportDataset',
     method: 'post',
     data: data,
+    loading: true
+  })
+}
+
+export function downloadFile(id) {
+  // 初始化仪表板视图缓存
+  return request({
+    url: 'exportCenter/download/' + id,
+    method: 'get',
     loading: true,
     responseType: 'blob'
   })
 }
 
-export default { loadTable, getScene, addGroup, delGroup, addTable, delTable, groupTree, checkCustomDs, exportDataset }
+export function getColumnList(datasource, table) {
+  return request({
+    url: 'dataset/table/getFields',
+    method: 'post',
+    loading: true,
+    data: { dataSourceId: datasource, info: JSON.stringify({ table: table }) }
+  })
+}
+
+export default { loadTable, getScene, addGroup, delGroup, addTable, delTable, groupTree, checkCustomDs, exportDataset, getColumnList }

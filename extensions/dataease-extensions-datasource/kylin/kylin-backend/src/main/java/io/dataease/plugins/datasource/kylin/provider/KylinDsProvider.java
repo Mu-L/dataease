@@ -1,15 +1,15 @@
 package io.dataease.plugins.datasource.kylin.provider;
 
-import com.alibaba.druid.pool.DruidPooledConnection;
 import com.google.gson.Gson;
 import io.dataease.plugins.common.base.domain.DeDriver;
 import io.dataease.plugins.common.base.mapper.DeDriverMapper;
 import io.dataease.plugins.common.constants.DatasourceTypes;
+import io.dataease.plugins.common.dto.datasource.DataSourceType;
 import io.dataease.plugins.common.dto.datasource.TableDesc;
 import io.dataease.plugins.common.dto.datasource.TableField;
 import io.dataease.plugins.common.exception.DataEaseException;
 import io.dataease.plugins.common.request.datasource.DatasourceRequest;
-import io.dataease.plugins.datasource.entity.JdbcConfiguration;
+import io.dataease.plugins.common.util.SpringContextUtil;
 import io.dataease.plugins.datasource.provider.DefaultJdbcProvider;
 import io.dataease.plugins.datasource.provider.ExtendedJdbcClassLoader;
 import org.apache.commons.lang3.StringUtils;
@@ -51,17 +51,28 @@ public class KylinDsProvider extends DefaultJdbcProvider {
                 props.setProperty("password", prestoConfig.getPassword());
             }
         }
-
+        String surpportVersions = null;
         Connection conn;
         String driverClassName ;
         ExtendedJdbcClassLoader jdbcClassLoader;
         if(isDefaultClassLoader(customDriver)){
             driverClassName = defaultDriver;
             jdbcClassLoader =  extendedJdbcClassLoader;
+            DeDriver driver = deDriverMapper.selectByPrimaryKey("default-" + datasourceRequest.getDatasource().getType());
+            if (driver == null) {
+                for (DataSourceType value : SpringContextUtil.getApplicationContext().getBeansOfType(DataSourceType.class).values()) {
+                    if (value.getType().equalsIgnoreCase(datasourceRequest.getDatasource().getType())) {
+                        surpportVersions = value.getSurpportVersions();
+                    }
+                }
+            } else {
+                surpportVersions = driver.getSurpportVersions();
+            }
         }else {
             if(deDriver == null){
                 deDriver = deDriverMapper.selectByPrimaryKey(customDriver);
             }
+            surpportVersions = deDriver.getSurpportVersions();
             driverClassName = deDriver.getDriverClass();
             jdbcClassLoader = getCustomJdbcClassLoader(deDriver);
         }
@@ -75,6 +86,12 @@ public class KylinDsProvider extends DefaultJdbcProvider {
             throw e;
         }finally {
             Thread.currentThread().setContextClassLoader(classLoader);
+        }
+        if(StringUtils.isNotEmpty(surpportVersions) && surpportVersions.split(",").length > 0){
+            if(! Arrays.asList(surpportVersions.split(",")).contains(String.valueOf(conn.getMetaData().getDatabaseMajorVersion()))){
+                conn.close();
+                DataEaseException.throwException("当前驱动不支持此版本!");
+            };
         }
         return conn;
     }
@@ -143,6 +160,7 @@ public class KylinDsProvider extends DefaultJdbcProvider {
         }
         tableField.setRemarks(remarks);
         String dbType = resultSet.getString("TYPE_NAME").toUpperCase();
+        tableField.setType(resultSet.getInt("DATA_TYPE"));
         tableField.setFieldType(dbType);
         if (dbType.equalsIgnoreCase("LONG")) {
             tableField.setFieldSize(65533);

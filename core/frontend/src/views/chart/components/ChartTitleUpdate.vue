@@ -6,8 +6,9 @@
   >
     <input
       ref="chartTitle"
-      v-model="chartTitleUpdate"
+      v-model.trim="chartTitleUpdate"
       type="text"
+      maxlength="50"
       :style="inputStyle"
       class="chart-input-title"
       @blur="changeEditStatus"
@@ -91,10 +92,6 @@ export default {
   methods: {
     changeEditStatus() {
       this.lostFocus()
-      if (this.chartTitleUpdate.length > 50) {
-        this.$error(this.$t('chart.title_limit'))
-        return
-      }
       if (this.chartTitleUpdate.length < 1) {
         this.$error(this.$t('chart.title_cannot_empty'))
         this.chartTitleUpdate = this.chart.title
@@ -280,11 +277,6 @@ export default {
       ) {
         view.drillFields = []
       }
-      view.customFilter.forEach(function(ele) {
-        if (ele && !ele.filter) {
-          ele.filter = []
-        }
-      })
       view.xaxis = JSON.stringify(view.xaxis)
       view.viewFields = JSON.stringify(view.viewFields)
       view.xaxisExt = JSON.stringify(view.xaxisExt)
@@ -407,7 +399,7 @@ export default {
 .chart-input-title {
   word-break: break-word;
   font: 12px / 1.231 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial,
-    'Microsoft YaHei', 'PingFang SC', sans-serif, 'Segoe UI Symbol';
+    'Microsoft YaHei', 'AlibabaPuHuiTi', sans-serif, 'Segoe UI Symbol';
   overflow: visible;
   margin: 0;
   padding: 0;

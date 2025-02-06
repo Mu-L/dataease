@@ -166,6 +166,7 @@ export function delGroup(groupId) {
 }
 
 export function initPanelData(panelId, useCache = false, callback) {
+  store.commit('resetLastValidFilters')
   const queryMethod = useCache ? findUserCacheRequest : findOne
   // 加载视图数据
   queryMethod(panelId).then(response => {
@@ -192,7 +193,7 @@ export function initPanelData(panelId, useCache = false, callback) {
         watermarkOpen: response.data.watermarkOpen,
         watermarkInfo: watermarkInfo
       })
-      const targetPanelId = response.data.panelType==='system'?response.data.source:panelId
+      const targetPanelId = response.data.panelType === 'system' ? response.data.source : panelId
       // 刷新联动信息
       getPanelAllLinkageInfo(targetPanelId).then(rsp => {
         store.commit('setNowPanelTrackInfo', rsp.data)
@@ -264,8 +265,16 @@ export function innerExportDetails(data) {
     url: 'panel/group/innerExportDetails',
     method: 'post',
     data: data,
-    loading: true,
-    responseType: 'blob'
+    loading: true
+  })
+}
+
+export function exportDatasetDetails(data) {
+  return request({
+    url: 'panel/group/exportDatasetDetails',
+    method: 'post',
+    data: data,
+    loading: true
   })
 }
 

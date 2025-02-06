@@ -45,24 +45,34 @@
           :label="$t('system_parameter_setting.kettle_setting')"
           name="eight"
         />
+
+        <el-tab-pane
+          v-if="isPluginLoaded && showProxy"
+          lazy
+          :label="$t('system_parameter_setting.proxy_setting')"
+          name="nine"
+        />
       </el-tabs>
       <div
         class="tabs-container"
         :class="[activeName !== 'eight' ? 'is-center' : 'pad-center']"
       >
-        <div class="min-w600">
+        <div :class="activeName === 'ten' ? 'max-w600' : 'min-w600'">
           <basic-setting
             v-if="activeName === 'zero'"
             :is-plugin-loaded="isPluginLoaded"
           />
           <email-setting v-if="activeName === 'first'" />
-          <map-setting
-            v-if="activeName === 'ten'"
-            ref="mapSetting"
-          />
+          <map-setting v-if="activeName === 'ten'" />
+
           <simple-mode v-if="activeName === 'six'" />
           <cluster-mode v-if="activeName === 'seven'" />
           <kettle-setting v-if="activeName === 'eight'" />
+          <plugin-com
+            v-if="isPluginLoaded && activeName === 'nine'"
+            ref="ProxySetting"
+            component-name="ProxySetting"
+          />
         </div>
       </div>
     </div>
@@ -78,6 +88,7 @@ import KettleSetting from './KettleSetting'
 import DeLayoutContent from '@/components/business/DeLayoutContent'
 import { pluginLoaded } from '@/api/user'
 import { engineMode } from '@/api/system/engine'
+import PluginCom from '@/views/system/plugin/PluginCom'
 export default {
   components: {
     BasicSetting,
@@ -86,13 +97,15 @@ export default {
     SimpleMode,
     ClusterMode,
     KettleSetting,
-    MapSetting
+    MapSetting,
+    PluginCom
   },
   data() {
     return {
       activeName: 'zero',
       isPluginLoaded: false,
-      engineMode: 'local'
+      engineMode: 'local',
+      showProxy: true
     }
   },
   beforeCreate() {
@@ -117,6 +130,14 @@ export default {
 
     .min-w600 {
       min-width: 600px;
+      height: 100%;
+      & > :nth-child(1) {
+        box-sizing: border-box;
+        padding-bottom: 20px;
+      }
+    }
+    .max-w600 {
+      width: 100%;
       height: 100%;
       & > :nth-child(1) {
         box-sizing: border-box;

@@ -264,7 +264,7 @@ class TimeDateRangeServiceImpl extends WidgetService {
       const sDynamicInfill = element.options.attrs.default.sDynamicInfill
       const sDynamicSuffix = element.options.attrs.default.sDynamicSuffix
 
-      const eDynamicPrefix = parseInt(element.options.attrs.default.eDynamicPrefix)
+      const eDynamicPrefix = parseInt(element.options.attrs.default.eDynamicPrefix || 0)
       const eDynamicInfill = element.options.attrs.default.eDynamicInfill
       const eDynamicSuffix = element.options.attrs.default.eDynamicSuffix
       const startTime = this.customTime(sDynamicPrefix, sDynamicInfill, sDynamicSuffix)
@@ -310,9 +310,13 @@ class TimeDateRangeServiceImpl extends WidgetService {
       return false
     }
   }
-  getParam(element) {
+  getParam(element, val) {
     let timeArr = []
-    if (element.options.attrs.default && element.options.attrs.default.isDynamic) {
+    if (val) {
+      let value = Array.isArray(val) ? val : typeof val === 'string' ? val.split(',') : [val]
+      value = this.formatFilterValue(value)
+      timeArr = this.formatValues(value, element)
+    } else if (element.options.attrs.default && element.options.attrs.default.isDynamic) {
       let value = this.dynamicDateFormNow(element)
       value = this.formatFilterValue(value)
       timeArr = this.formatValues(value, element)

@@ -1,6 +1,7 @@
 <template>
   <el-tabs
-    :class="['de-tabs',...tabClassName]"
+    ref="tabsConstom"
+    :class="['de-tabs-component',...tabClassName]"
     :style="tabStyle"
     v-bind="$attrs"
     v-on="$listeners"
@@ -13,7 +14,7 @@
 export default {
   name: 'DataeaseTabs',
   props: {
-
+    hideTitle: Boolean,
     fontColor: String,
     activeColor: String,
     borderColor: String,
@@ -42,7 +43,8 @@ export default {
         this.fontColor && 'fontColor',
         this.activeColor && 'activeColor',
         this.noBorder ? 'noBorder' : this.borderColor && 'borderColor',
-        this.borderActiveColor && 'borderActiveColor'
+        this.borderActiveColor && 'borderActiveColor',
+        this.hideTitle && 'no-header'
       ]
       return classes
     },
@@ -58,7 +60,7 @@ export default {
 }
 </script>
 <style lang="scss">
-@import "../../styles/de-tabs";
+@import "../../styles/de-tabs-component";
 
 </style>
 

@@ -13,7 +13,7 @@
           @click="add('group')"
         />
       </el-row>
-      <el-divider/>
+      <el-divider />
       <el-row style="margin-bottom: 10px">
         <el-col :span="16">
           <el-input
@@ -31,7 +31,7 @@
               size="mini"
               type="primary"
             >
-              {{ searchMap[searchType] }}<i class="el-icon-arrow-down el-icon--right"/>
+              {{ searchMap[searchType] }}<i class="el-icon-arrow-down el-icon--right" />
             </el-button>
             <el-dropdown-menu slot="dropdown">
               <el-dropdown-item @click.native="searchTypeClick('all')">{{ $t('commons.all') }}</el-dropdown-item>
@@ -63,7 +63,7 @@
             >
               <span style="display: flex;flex: 1;width: 0;">
                 <span>
-                  <i class="el-icon-folder"/>
+                  <i class="el-icon-folder" />
                 </span>
                 <span
                   style="margin-left: 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
@@ -152,7 +152,7 @@
               class="custom-tree-node-list father"
             >
               <span style="display: flex;flex: 1;width: 0;">
-                <span><svg-icon :icon-class="data.modelInnerType"/></span>
+                <span><svg-icon :icon-class="data.modelInnerType" /></span>
                 <span
                   style="margin-left: 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                   :title="data.name"
@@ -225,7 +225,7 @@
             :label="$t('commons.name')"
             prop="name"
           >
-            <el-input v-model="groupForm.name"/>
+            <el-input v-model="groupForm.name" />
           </el-form-item>
         </el-form>
         <div
@@ -266,7 +266,7 @@
           :label="$t('commons.name')"
           prop="name"
         >
-          <el-input v-model="tableForm.name"/>
+          <el-input v-model="tableForm.name" />
         </el-form-item>
       </el-form>
       <div
@@ -322,8 +322,8 @@
         :active="createActive"
         align-center
       >
-        <el-step :title="$t('chart.select_dataset')"/>
-        <el-step :title="$t('chart.select_chart_type')"/>
+        <el-step :title="$t('chart.select_dataset')" />
+        <el-step :title="$t('chart.select_chart_type')" />
       </el-steps>
 
       <table-selector
@@ -397,8 +397,8 @@
           size="mini"
           @click="createPreview"
         >{{
-            $t('chart.preview')
-          }}
+          $t('chart.preview')
+        }}
         </el-button>
         <el-button
           v-if="createActive === 1"
@@ -447,8 +447,8 @@
           size="mini"
           @click="saveMoveGroup(tGroup)"
         >{{
-            $t('dataset.confirm')
-          }}
+          $t('dataset.confirm')
+        }}
         </el-button>
       </div>
     </el-dialog>
@@ -481,8 +481,8 @@
           size="mini"
           @click="saveMoveDs(tDs)"
         >{{
-            $t('dataset.confirm')
-          }}
+          $t('dataset.confirm')
+        }}
         </el-button>
       </div>
     </el-dialog>
@@ -630,6 +630,15 @@ export default {
     },
     panelInfo() {
       return this.$store.state.panel.panelInfo
+    },
+    isPlugin() {
+      const plugins = localStorage.getItem('plugin-views') && JSON.parse(localStorage.getItem('plugin-views')) || []
+      return plugins.some(plugin => plugin.value === this.view.type && plugin.render === this.view.render)
+    },
+    watchChartTypeChangeObj() {
+      const { type, render } = this.view
+      const isPlugin = this.isPlugin
+      return { type, render, isPlugin }
     }
   },
   watch: {
@@ -649,8 +658,15 @@ export default {
       this.searchPids = []
       this.$refs.chartTreeRef.filter(this.filterText)
     },
-    chartType(val) {
-      this.view.isPlugin = val && this.$refs['cu-chart-type'] && this.$refs['cu-chart-type'].currentIsPlugin(val)
+    // chartType(val) {
+    //   this.view.isPlugin = val && this.$refs['cu-chart-type'] && this.$refs['cu-chart-type'].currentIsPlugin(val)
+    // },
+    watchChartTypeChangeObj(newVal, oldVal) {
+      this.view.isPlugin = newVal.isPlugin
+      // if (newVal.type === oldVal.type && newVal.render === oldVal.render && newVal.isPlugin === oldVal.isPlugin) {
+      //   return
+      // }
+      // this.view.isPlugin = this.$refs['cu-chart-type'] && this.$refs['cu-chart-type'].currentIsPlugin(newVal.type, newVal.render)
     }
 
   },
@@ -677,12 +693,22 @@ export default {
     this.getChartGroupTree()
   },
   methods: {
+    distinctArray(arr, key) {
+      const m = new Map()
+      for (const item of arr) {
+        if (!m.has(item[key])) {
+          m.set(item[key], item)
+        }
+      }
+      return [...m.values()]
+    },
     loadPluginType() {
       const plugins = localStorage.getItem('plugin-views') && JSON.parse(localStorage.getItem('plugin-views')) || []
       const pluginOptions = plugins.filter(plugin => !this.renderOptions.some(option => option.value === plugin.render)).map(plugin => {
         return { name: plugin.render, value: plugin.render }
       })
-      this.pluginRenderOptions = [...this.renderOptions, ...pluginOptions]
+      const tempList = [...this.renderOptions, ...pluginOptions]
+      this.pluginRenderOptions = this.distinctArray(tempList, 'value')
     },
     clickAdd(param) {
       this.currGroup = param.data
@@ -1020,7 +1046,7 @@ export default {
       view.yaxis = JSON.stringify([])
       view.yaxisExt = JSON.stringify([])
       view.extStack = JSON.stringify([])
-      view.customFilter = JSON.stringify([])
+      view.customFilter = JSON.stringify({})
       view.drillFields = JSON.stringify([])
       view.extBubble = JSON.stringify([])
       view.viewFields = JSON.stringify([])

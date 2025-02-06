@@ -15,7 +15,6 @@
 
 <script>
 import bus from '@/utils/bus'
-import { mapState } from 'vuex'
 export default {
 
   props: {
@@ -26,6 +25,10 @@ export default {
     inDraw: {
       type: Boolean,
       default: true
+    },
+    canvasStyleData: {
+      type: Object,
+      default: () => {}
     },
     size: String
   },
@@ -44,11 +47,7 @@ export default {
         }
       }
       return false
-    },
-    ...mapState([
-      'canvasStyleData'
-    ])
-
+    }
   },
   created() {
   },

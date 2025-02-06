@@ -1,7 +1,7 @@
 package io.dataease.service.wizard;
 
-import io.dataease.commons.utils.HttpClientConfig;
-import io.dataease.commons.utils.HttpClientUtil;
+import io.dataease.plugins.common.util.HttpClientConfig;
+import io.dataease.plugins.common.util.HttpClientUtil;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -18,6 +18,8 @@ import java.util.*;
 @Service
 public class ReptileService {
     String blogUrl = "https://blog.fit2cloud.com/categories/dataease";
+
+    String blogBaseUrl = "https://blog.fit2cloud.com";
     //获取最新的前几条数据
     private static int infoCount=5;
 
@@ -33,7 +35,7 @@ public class ReptileService {
                 Element info = elementsContent.get(i).children().get(0);
                 Map<String, String> infoMap = new HashMap();
                 infoMap.put("title",info.attr("title"));
-                infoMap.put("href",info.attr("href"));
+                infoMap.put("href",blogBaseUrl + info.attr("href"));
                 result.add(infoMap);
             }
         } catch (Exception e) {

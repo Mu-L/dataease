@@ -155,7 +155,7 @@
             :format="element.options.attrs.accuracy"
             style="width: auto; min-width: 110px;"
             placeholder=""
-            @change="eDynamicSuffixTimeChange"
+            @change="sDynamicSuffixTimeChange"
           />
         </el-form-item>
 
@@ -275,6 +275,7 @@
           :element="element"
           class="relative-time"
           :in-draw="false"
+          @widget-value-changed="widgetValChanged"
         />
       </el-form-item>
 
@@ -334,12 +335,27 @@ export default {
       return result
     }
   },
+  watch: {
+    'dval': function(val, old) {
+      if (this.element.options.attrs.default.isDynamic) {
+        this.$emit('widget-value-changed', val)
+      }
+    }
+  },
   created() {
     this.fillEmptySuffixTime()
     this.setDval()
   },
   methods: {
+    widgetValChanged(val) {
+      if (!this.element.options.attrs.default.isDynamic) {
+        this.$emit('widget-value-changed', val)
+      }
+    },
     dynamicChange(value) {
+      if (!value) {
+        this.$emit('widget-value-changed', this.element.options.value)
+      }
       this.setDval()
     },
     dkeyChange(value) {
@@ -384,10 +400,22 @@ export default {
       }
     },
     eDynamicSuffixTimeChange(val) {
+      const time = this.convertTime(val)
+      this.$set(this.element.options.attrs.default, 'eDynamicSuffixTime', time)
       this.setDval()
     },
     sDynamicSuffixTimeChange(val) {
+      const time = this.convertTime(val)
+      this.$set(this.element.options.attrs.default, 'sDynamicSuffixTime', time)
       this.setDval()
+    },
+    convertTime(val) {
+      const date = new Date(val)
+      const baseDate = new Date(this.baseTime)
+      date.setFullYear(baseDate.getFullYear())
+      date.setMonth(baseDate.getMonth())
+      date.setDate(baseDate.getDate())
+      return date.getTime()
     }
   }
 }

@@ -22,9 +22,9 @@
         <div class="ds-top">
           <deBtn
             v-if="privileges && canEdit"
-            secondary
             key="cancel"
-            @click="editDatasource(false)"
+            secondary
+            @click="cancelEdit"
           >{{ $t('commons.cancel') }}
           </deBtn>
           <deBtn
@@ -64,11 +64,11 @@
         </div>
         <div style="height: calc(100% - 36px)">
           <ds-form-content
-            @editeTodisable="editDatasource"
-            :canEdit="canEdit"
             ref="DsFormContent"
-            @refresh-type="refreshType"
+            :can-edit="canEdit"
             :config-from-tabs="configFromTabs"
+            @editeTodisable="editDatasource"
+            @refresh-type="refreshType"
           />
         </div>
       </template>
@@ -90,7 +90,7 @@ export default {
   data() {
     return {
       activeName: 'detail',
-      canEdit: false,
+      canEdit: false
     }
   },
   computed: {
@@ -108,6 +108,10 @@ export default {
     editDatasource(type = false) {
       this.$refs.DsFormContent.editDatasource(type)
       this.canEdit = type
+    },
+    cancelEdit() {
+      this.$refs.DsFormContent.cancelEdit()
+      this.canEdit = false
     },
     validaDatasource() {
       this.$refs.DsFormContent.validaDatasource()

@@ -1,6 +1,14 @@
 import { hexColorToRGBA } from '@/views/chart/chart/util'
-import { DEFAULT_XAXIS_STYLE, DEFAULT_YAXIS_EXT_STYLE, DEFAULT_YAXIS_STYLE } from '@/views/chart/chart/chart'
+import {
+  DEFAULT_COLOR_CASE,
+  DEFAULT_XAXIS_STYLE,
+  DEFAULT_YAXIS_EXT_STYLE,
+  DEFAULT_YAXIS_STYLE
+} from '@/views/chart/chart/chart'
 import { formatterItem, valueFormatter } from '@/views/chart/chart/formatter'
+import { $success } from '@/utils/message'
+import i18n from '@/lang'
+import { cloneDeep } from 'lodash'
 
 export function componentStyle(chart_option, chart) {
   let xAxisLabelFormatter = null
@@ -267,7 +275,7 @@ const hexToRgba = (hex, opacity) => {
 }
 
 export function seniorCfg(chart_option, chart) {
-  if (chart.senior && chart.type && (chart.type.includes('bar') || chart.type.includes('line') || chart.type.includes('mix'))) {
+  if (chart.senior && chart.type && (chart.type.includes('bar') || chart.type.includes('line') || chart.type.includes('mix') || chart.type.includes('scatter'))) {
     const senior = JSON.parse(chart.senior)
     if (senior.functionCfg) {
       if (senior.functionCfg.sliderShow) {
@@ -336,54 +344,56 @@ export function seniorCfg(chart_option, chart) {
         }
 
         const fixedLines = senior.assistLine.filter(ele => ele.field === '0')
-        const dynamicLines = chart.data.dynamicAssistLines
+        const dynamicLines = chart.data.dynamicAssistData
         const lines = fixedLines.concat(dynamicLines)
 
         lines.forEach(ele => {
-          if (chart.type.includes('horizontal')) {
-            chart_option.series[0].markLine.data.push({
-              symbol: 'none',
-              xAxis: parseFloat(ele.value),
-              name: ele.name,
-              lineStyle: {
-                color: ele.color,
-                type: ele.lineType
-              },
-              label: {
-                show: true,
-                color: ele.color,
-                fontSize: ele.fontSize ? parseInt(ele.fontSize) : 10,
-                position: xAxis.position === 'bottom' ? 'insideStartTop' : 'insideEndTop',
-                formatter: function(param) {
-                  return ele.name + ' : ' + valueFormatter(param.value, axisFormatterCfg)
+          if (ele) {
+            if (chart.type.includes('horizontal')) {
+              chart_option.series[0].markLine.data.push({
+                symbol: 'none',
+                xAxis: parseFloat(ele.value),
+                name: ele.name,
+                lineStyle: {
+                  color: ele.color,
+                  type: ele.lineType
+                },
+                label: {
+                  show: true,
+                  color: ele.color,
+                  fontSize: ele.fontSize ? parseInt(ele.fontSize) : 10,
+                  position: xAxis.position === 'bottom' ? 'insideStartTop' : 'insideEndTop',
+                  formatter: function(param) {
+                    return ele.name + ' : ' + valueFormatter(param.value, axisFormatterCfg)
+                  }
+                },
+                tooltip: {
+                  show: false
                 }
-              },
-              tooltip: {
-                show: false
-              }
-            })
-          } else {
-            chart_option.series[0].markLine.data.push({
-              symbol: 'none',
-              yAxis: parseFloat(ele.value),
-              name: ele.name,
-              lineStyle: {
-                color: ele.color,
-                type: ele.lineType
-              },
-              label: {
-                show: true,
-                color: ele.color,
-                fontSize: ele.fontSize ? parseInt(ele.fontSize) : 10,
-                position: yAxis.position === 'left' ? 'insideStartTop' : 'insideEndTop',
-                formatter: function(param) {
-                  return ele.name + ' : ' + valueFormatter(param.value, axisFormatterCfg)
+              })
+            } else {
+              chart_option.series[0].markLine.data.push({
+                symbol: 'none',
+                yAxis: parseFloat(ele.value),
+                name: ele.name,
+                lineStyle: {
+                  color: ele.color,
+                  type: ele.lineType
+                },
+                label: {
+                  show: true,
+                  color: ele.color,
+                  fontSize: ele.fontSize ? parseInt(ele.fontSize) : 10,
+                  position: yAxis.position === 'left' ? 'insideStartTop' : 'insideEndTop',
+                  formatter: function(param) {
+                    return ele.name + ' : ' + valueFormatter(param.value, axisFormatterCfg)
+                  }
+                },
+                tooltip: {
+                  show: false
                 }
-              },
-              tooltip: {
-                show: false
-              }
-            })
+              })
+            }
           }
         })
       }
@@ -395,4 +405,53 @@ export const reverseColor = colorValue => {
   colorValue = '0x' + colorValue.replace(/#/g, '')
   const str = '000000' + (0xFFFFFF - colorValue).toString(16)
   return '#' + str.substring(str.length - 6, str.length)
+}
+
+export const copyString = (content, notify) => {
+  const clipboard = navigator.clipboard || {
+    writeText: data => {
+      return new Promise(resolve => {
+        const inputDom = document.createElement('input')
+        inputDom.setAttribute('style', 'z-index: -1;position: fixed;opacity: 0;')
+        inputDom.setAttribute('type', 'text')
+        inputDom.setAttribute('value', data)
+        document.body.appendChild(inputDom)
+        inputDom.select()
+        document.execCommand('copy')
+        inputDom.remove()
+        resolve()
+      })
+    }
+  }
+  clipboard.writeText(content).then(() => {
+    if (notify) {
+      $success(i18n.t('commons.copy_success'))
+    }
+  })
+}
+
+export const configTopN = (data, chart) => {
+  if (!data?.length) {
+    return
+  }
+  const color = JSON.parse(chart.customAttr).color
+  if (!color.calcTopN || data.length <= color.topN) {
+    return
+  }
+  data.sort((a, b) => b.value - a.value)
+  const otherItems = data.splice(color.topN)
+  const initOtherItem = {
+    ...cloneDeep(data[0]),
+    name: color.topNLabel ?? DEFAULT_COLOR_CASE.topNLabel,
+    value: 0
+  }
+  otherItems.reduce((p, n) => {
+    p.value += n.value ?? 0
+    return p
+  }, initOtherItem)
+  data.push(initOtherItem)
+  data.forEach((item, i) => {
+    const curColor = color.colors[i % color.colors.length]
+    item.itemStyle.color = hexColorToRGBA(curColor, color.alpha)
+  })
 }

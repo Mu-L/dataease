@@ -1,4 +1,5 @@
 export const DEFAULT_TAB_COLOR_CASE_DARK = {
+  titleHide: false,
   headFontColor: '#FFFFFF',
   headFontActiveColor: '#FFFFFF',
   headBorderColor: '#131E42',
@@ -7,6 +8,7 @@ export const DEFAULT_TAB_COLOR_CASE_DARK = {
 }
 
 export const DEFAULT_TAB_COLOR_CASE_LIGHT = {
+  titleHide: false,
   headFontColor: '#OOOOOO',
   headFontActiveColor: '#OOOOOO',
   headBorderColor: '#OOOOOO',
@@ -20,6 +22,8 @@ export const DEFAULT_COLOR_CASE = {
   alpha: 100,
   tableHeaderBgColor: '#6D9A49',
   tableItemBgColor: '#FFFFFF',
+  enableTableCrossBG: false,
+  tableItemSubBgColor: '#dedede',
   tableHeaderFontColor: '#000000',
   tableFontColor: '#000000',
   tableStripe: true,
@@ -36,6 +40,10 @@ export const DEFAULT_COLOR_CASE = {
   mapLineGradient: false,
   mapLineSourceColor: '#146C94',
   mapLineTargetColor: '#576CBC',
+  quotaSuffixColor: '#5470c6',
+  calcTopN: false,
+  topN: 5,
+  topNLabel: '其他'
 }
 
 export const DEFAULT_COLOR_CASE_DARK = {
@@ -44,6 +52,8 @@ export const DEFAULT_COLOR_CASE_DARK = {
   alpha: 100,
   tableHeaderBgColor: '#5470c6',
   tableItemBgColor: '#131E42',
+  enableTableCrossBG: false,
+  tableItemSubBgColor: '#1b2d60',
   tableFontColor: '#ffffff',
   tableStripe: true,
   dimensionColor: '#ffffff',
@@ -58,6 +68,10 @@ export const DEFAULT_COLOR_CASE_DARK = {
   mapLineGradient: false,
   mapLineSourceColor: '#2F58CD',
   mapLineTargetColor: '#3795BD',
+  quotaSuffixColor: '#5470c6',
+  calcTopN: false,
+  topN: 5,
+  topNLabel: '其他'
 }
 export const DEFAULT_SIZE = {
   barDefault: true,
@@ -86,6 +100,17 @@ export const DEFAULT_SIZE = {
   tableHeaderAlign: 'left',
   tableItemAlign: 'right',
   tableAutoBreakLine: false,
+  tableRowTooltip: {
+    show: false
+  },
+  tableColTooltip: {
+    show: false
+  },
+  tableCellTooltip: {
+    show: false
+  },
+  tableFieldWidth: [],
+  tableLayoutMode: 'grid',
   gaugeMinType: 'fix', // fix or dynamic
   gaugeMinField: {
     id: '',
@@ -102,6 +127,7 @@ export const DEFAULT_SIZE = {
   gaugeEndAngle: -45,
   gaugeAxisLine: true,
   gaugeTickCount: 5,
+  gaugePercentLabel: true,
   dimensionFontSize: 18,
   quotaFontSize: 18,
   spaceSplit: 10,
@@ -148,7 +174,21 @@ export const DEFAULT_SIZE = {
   mapLineAnimateInterval: 1,
   mapLineAnimateTrailLength: 1,
   wordSizeRange: [8, 32],
-  wordSpacing: 6
+  wordSpacing: 6,
+  showTableHeader: true,
+  quotaSuffix: '',
+  quotaSuffixFontSize: 12,
+  quotaSuffixFontFamily: 'Microsoft YaHei',
+  quotaSuffixFontIsItalic: false,
+  quotaSuffixFontIsBolder: false,
+  quotaSuffixLetterSpace: '0',
+  quotaSuffixFontShadow: false,
+  tableColumnFreezeHead: 0,
+  tableColumnFreezeTail: 0,
+  tableRowFreezeHead: 0,
+  tableHeaderSort: false,
+  showSummary: false,
+  summaryLabel: '总计'
 }
 export const DEFAULT_SUSPENSION = {
   show: true
@@ -164,10 +204,15 @@ export const DEFAULT_LABEL = {
   color: '#909399',
   fontSize: '10',
   formatter: '{c}',
-  gaugeFormatter: '{value}',
+  subShow: false,
+  subPosition: 'top',
+  subColor: '#909399',
+  subFontSize: '10',
+  subFormatter: '{c}',
   labelLine: {
     show: true
   },
+  gaugeFormatter: '{value}',
   gaugeLabelFormatter: {
     type: 'value', // auto,value,percent
     unit: 1, // 换算单位
@@ -176,7 +221,12 @@ export const DEFAULT_LABEL = {
     thousandSeparator: true// 千分符
   },
   reserveDecimalCount: 2,
-  labelContent: ['dimension', 'proportion']
+  labelContent: ['dimension', 'proportion'],
+  showConversion: false,
+  conversionLabel: '转换率',
+  showTotal: false,
+  totalFontSize: '12',
+  totalColor: '#909399'
 }
 export const DEFAULT_TOOLTIP = {
   show: true,
@@ -199,10 +249,14 @@ export const DEFAULT_TOTAL = {
     subLabel: '小计',
     subTotalsDimensions: [],
     calcTotals: {
-      aggregation: 'SUM'
+      aggregation: 'SUM',
+      // { dataeaseName, aggregation }
+      cfg: []
     },
     calcSubTotals: {
-      aggregation: 'SUM'
+      aggregation: 'SUM',
+      // { dataeaseName, aggregation }
+      cfg: []
     },
     totalSort: 'none', // asc,desc
     totalSortField: ''
@@ -216,10 +270,14 @@ export const DEFAULT_TOTAL = {
     subLabel: '小计',
     subTotalsDimensions: [],
     calcTotals: {
-      aggregation: 'SUM'
+      aggregation: 'SUM',
+      // { dataeaseName, aggregation }
+      cfg: []
     },
     calcSubTotals: {
-      aggregation: 'SUM'
+      aggregation: 'SUM',
+      // { dataeaseName, aggregation }
+      cfg: []
     },
     totalSort: 'none', // asc,desc
     totalSortField: ''
@@ -306,6 +364,11 @@ export const DEFAULT_XAXIS_STYLE = {
       color: '#cccccc',
       width: 1,
       style: 'solid'
+    },
+    enableDash: false,
+    dashStyle: {
+      width: 4,
+      offset: 5
     }
   },
   axisValue: {
@@ -336,7 +399,8 @@ export const DEFAULT_YAXIS_STYLE = {
     color: '#333333',
     fontSize: '12',
     rotate: 0,
-    formatter: '{value}'
+    formatter: '{value}',
+    lengthLimit: 20
   },
   axisLine: {
     show: false,
@@ -352,6 +416,11 @@ export const DEFAULT_YAXIS_STYLE = {
       color: '#cccccc',
       width: 1,
       style: 'solid'
+    },
+    enableDash: false,
+    dashStyle: {
+      width: 4,
+      offset: 5
     }
   },
   axisValue: {
@@ -398,6 +467,11 @@ export const DEFAULT_YAXIS_EXT_STYLE = {
       color: '#cccccc',
       width: 1,
       style: 'solid'
+    },
+    enableDash: false,
+    dashStyle: {
+      width: 4,
+      offset: 5
     }
   },
   axisValue: {
@@ -462,6 +536,11 @@ export const DEFAULT_SPLIT = {
   },
   splitArea: {
     show: true
+  },
+  axisValue: {
+    auto: true,
+    min: 10,
+    max: 100
   }
 }
 export const DEFAULT_FUNCTION_CFG = {
@@ -475,6 +554,7 @@ export const DEFAULT_FUNCTION_CFG = {
 }
 export const DEFAULT_THRESHOLD = {
   gaugeThreshold: '',
+  liquidThreshold: '',
   labelThreshold: [],
   tableThreshold: [],
   textLabelThreshold: []
@@ -882,7 +962,7 @@ export const BASE_CHART_STRING = {
     yAxis: DEFAULT_YAXIS_STYLE,
     yAxisExt: DEFAULT_YAXIS_EXT_STYLE
   }),
-  customFilter: '[]'
+  customFilter: '{}'
 }
 
 export const BASE_CHART = {
@@ -905,7 +985,7 @@ export const BASE_CHART = {
     yAxis: DEFAULT_YAXIS_STYLE,
     yAxisExt: DEFAULT_YAXIS_EXT_STYLE
   },
-  customFilter: []
+  customFilter: {}
 }
 
 export const BASE_MAP = {
@@ -1051,7 +1131,8 @@ export const BASE_TREEMAP = {
       breadcrumb: {
         show: false
       },
-      data: []
+      data: [],
+      nodeClick: false
     }
   ]
 }
@@ -1146,6 +1227,13 @@ export const CHART_FONT_FAMILY = [
   { name: '楷体', value: 'KaiTi' }
 ]
 
+export const CHART_CONT_FAMILY_MAP = {
+  'Microsoft YaHei': 'Microsoft YaHei',
+  'SimSun': 'SimSun, "Songti SC", STSong',
+  'SimHei': 'SimHei, Helvetica',
+  'KaiTi': 'KaiTi, "Kaiti SC", STKaiti'
+}
+
 export const CHART_FONT_LETTER_SPACE = [
   { name: '0px', value: '0' },
   { name: '1px', value: '1' },
@@ -1160,9 +1248,9 @@ export const CHART_FONT_LETTER_SPACE = [
   { name: '10px', value: '10' }
 ]
 
-export const NOT_SUPPORT_PAGE_DATASET = ['kylin', 'sqlServer', 'es', 'presto', 'ds_doris', 'StarRocks', 'impala']
+export const NOT_SUPPORT_PAGE_DATASET = ['kylin', 'sqlServer_all', 'es', 'presto', 'StarRocks']
 
-export const SUPPORT_Y_M = ['y', 'y_M', 'y_M_d']
+export const SUPPORT_Y_M = ['y', 'y_M', 'y_M_d', 'y_W']
 
 export const DEFAULT_MAP = {
   mapPitch: 0,

@@ -17,14 +17,14 @@
             v-if="table.mode === 0"
             class="de-tag primary"
           >{{
-              $t('dataset.direct_connect')
-            }}</span>
+            $t('dataset.direct_connect')
+          }}</span>
           <span
             v-if="table.mode === 1"
             class="de-tag warning"
           >{{
-              $t('dataset.sync_data')
-            }}</span>
+            $t('dataset.sync_data')
+          }}</span>
         </template>
         <span
           v-if="syncStatus === 'Underway'"
@@ -33,7 +33,7 @@
         >
           {{ $t('dataset.dataset_sync') }}
         </span>
-        <el-divider direction="vertical"/>
+        <el-divider direction="vertical" />
         <span class="create-by">{{ $t('dataset.create_by') }}</span>
         <span class="create-by">:{{ table.creatorName || 'N/A' }}</span>
         <el-popover
@@ -48,7 +48,11 @@
             :data="table"
             :tab-status="tabStatus"
           />
-          <svg-icon slot="reference" class="detail" icon-class="icon_info_outlined" />
+          <svg-icon
+            slot="reference"
+            class="detail"
+            icon-class="icon_info_outlined"
+          />
         </el-popover>
       </el-col>
       <el-col
@@ -77,11 +81,11 @@
           </deBtn>
           <el-dropdown-menu slot="dropdown">
             <el-dropdown-item command="0">
-              <svg-icon icon-class="icon_add-entry_outlined"/>
+              <svg-icon icon-class="icon_add-entry_outlined" />
               {{ $t('dataset.excel_replace') + $t('chart.chart_data') }}
             </el-dropdown-item>
             <el-dropdown-item command="1">
-              <svg-icon icon-class="icon_doc-replace_outlined"/>
+              <svg-icon icon-class="icon_doc-replace_outlined" />
               {{ $t('dataset.excel_add') + $t('chart.chart_data') }}
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -110,6 +114,7 @@
         name="dataPreview"
       >
         <tab-data-preview
+          v-loading="tableLoading"
           :param="param"
           :table="table"
           :fields="fields"
@@ -218,7 +223,7 @@
         >
           <div class="tree-cont">
             <div class="content">
-              <rowAuth ref="rowAuth"/>
+              <rowAuth ref="rowAuth" />
             </div>
           </div>
         </el-form-item>
@@ -234,6 +239,7 @@
         >{{ $t('dataset.cancel') }}
         </deBtn>
         <deBtn
+          v-loading="exportDatasetLoading"
           type="primary"
           @click="exportDatasetRequest"
         >{{ $t('dataset.confirm') }}
@@ -253,6 +259,8 @@ import { pluginLoaded } from '@/api/user'
 import PluginCom from '@/views/system/plugin/PluginCom'
 import UpdateRecords from './UpdateRecords'
 import rowAuth from './components/rowAuth.vue'
+import { Button } from 'element-ui'
+import bus from '@/utils/bus'
 
 export default {
   name: 'ViewTable',
@@ -281,7 +289,9 @@ export default {
       table: {
         name: ''
       },
+      tableLoading: false,
       fields: [],
+      exportDatasetLoading: false,
       filedList: [],
       data: [],
       syncStatus: '',
@@ -370,6 +380,7 @@ export default {
         post('/dataset/table/getWithPermission/' + id, null)
           .then((response) => {
             this.table = response.data
+            this.$cancelRequest('/dataset/table/getPreviewData/**')
             this.initPreviewData(this.page)
           })
           .catch((res) => {
@@ -380,11 +391,12 @@ export default {
 
     initPreviewData(page) {
       if (this.table.id) {
+        this.tableLoading = true
         this.table.row = this.tableViewRowForm.row
         post(
           '/dataset/table/getPreviewData/' + page.page + '/' + page.pageSize,
           this.table,
-          true,
+          false,
           30000
         )
           .then((response) => {
@@ -402,6 +414,7 @@ export default {
               this.previewDataSuccess = false
             }
             this.lastRequestComplete = true
+            this.tableLoading = false
           })
           .catch((response) => {
             this.lastRequestComplete = true
@@ -413,6 +426,10 @@ export default {
               show: 0
             }
             this.previewDataSuccess = false
+            if (this.$currentHttpRequestList.some((item, key) => {
+              return key.indexOf('dataset/table/getPreviewData') > -1
+            })) return
+            this.tableLoading = false
           })
       }
     },
@@ -474,6 +491,38 @@ export default {
     closeExport() {
       this.showExport = false
     },
+    openMessageLoading(cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-loading`
+      const customClass = `de-message-loading de-message-export`
+      this.$message({
+        message: h('p', null, [
+          this.$t('data_export.exporting'),
+          h(
+            Button,
+            {
+              props: {
+                type: 'text',
+              },
+              class: 'btn-text',
+              on: {
+                click: () => {
+                  cb()
+                }
+              }
+            },
+            this.$t('data_export.export_center')
+          ),
+          this.$t('data_export.export_info')
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
+    callbackExport() {
+      bus.$emit('data-export-center')
+    },
     exportDatasetRequest() {
       this.$refs['exportForm'].validate((valid) => {
         if (valid) {
@@ -490,15 +539,12 @@ export default {
               return
             }
             this.table.expressionTree = JSON.stringify({ items, logic })
+            this.exportDatasetLoading = true
             exportDataset(this.table).then((res) => {
-              const blob = new Blob([res], { type: 'application/vnd.ms-excel' })
-              const link = document.createElement('a')
-              link.style.display = 'none'
-              link.href = URL.createObjectURL(blob)
-              link.download = this.exportForm.name + '.xlsx' // 下载的文件名
-              document.body.appendChild(link)
-              link.click()
-              document.body.removeChild(link)
+              this.openMessageLoading(this.callbackExport)
+            }).finally(() => {
+              this.exportDatasetLoading = false
+              this.showExport = false
             })
           }
         } else {
@@ -550,7 +596,7 @@ export default {
 
   .de-dataset-name {
     display: flex;
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     align-items: center;
     margin-bottom: 20px;
 

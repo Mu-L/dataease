@@ -1,13 +1,13 @@
 package io.dataease.map.service;
 
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.ArrayUtil;
-import com.google.gson.Gson;
 
+import com.google.gson.Gson;
 import io.dataease.plugins.common.base.domain.ChartView;
 import io.dataease.plugins.common.base.domain.ChartViewExample;
 import io.dataease.plugins.common.base.domain.ChartViewWithBLOBs;
 import io.dataease.plugins.common.base.mapper.ChartViewMapper;
+import io.dataease.plugins.common.util.FileUtil;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,15 +40,20 @@ public class MapTransferService {
 
     private static final String FULL_FILE_SUFFIX = "_full.json";
 
+    private static final List<String> coverFileNameList = new ArrayList<>();
+    private static final List<String> globalCoverFileNameList = new ArrayList<>();
+
 
     @PostConstruct
     public void init() {
         MATCH_TYPES.add("map");
         MATCH_TYPES.add("buddle-map");
+        coverFileNameList.add("350200_full.json");
+        globalCoverFileNameList.add("000000000_full.json");
     }
+
     @Resource
     private ChartViewMapper chartViewMapper;
-
 
 
     public void execute() {
@@ -70,13 +75,12 @@ public class MapTransferService {
         String chinaRootPath = geoPath + FULL_KEY + FILE_SEPARATOR;
         File chinaRootDir = new File(chinaRootPath);
         File[] files = chinaRootDir.listFiles();
-        if(ArrayUtil.isEmpty(files)) return;
+        if (ArrayUtils.isEmpty(files)) return;
+        moveGlobalFile();
         Map<String, List<File>> listMap = Arrays.stream(files).filter(FileUtil::isFile).collect(Collectors.groupingBy(this::fileType));
         if (ObjectUtils.isEmpty(listMap)) return;
         moveFiles(listMap, BORDER_KEY);
         moveFiles(listMap, FULL_KEY);
-        moveGlobalFile();
-
     }
 
     private void moveFiles(Map<String, List<File>> listMap, String fileType) {
@@ -86,7 +90,7 @@ public class MapTransferService {
                 String fileName = file.getName();
                 String newFilePath = dirPath + GLOBAL_CHINA_PREFIX + FILE_SEPARATOR + GLOBAL_CHINA_PREFIX + fileName;
                 File target = new File(newFilePath);
-                if(!target.exists()) {
+                if (coverFileNameList.contains(fileName) || !target.exists()) {
                     FileUtil.move(file, target, true);
                 }
             });
@@ -107,7 +111,7 @@ public class MapTransferService {
         String targetPath = targetDirPath + fileName;
 
         File targetFile = new File(targetPath);
-        if (!targetFile.exists()) {
+        if (globalCoverFileNameList.contains(fileName) || !targetFile.exists()) {
             FileUtil.move(sourceFile, targetFile, true);
         }
 
@@ -128,7 +132,7 @@ public class MapTransferService {
 
     private Boolean customMatch(Map<String, Object> customAttrMap) {
         Object codeObj = null;
-        if((codeObj = customAttrMap.get(AREA_CODE_KEY)) != null) {
+        if ((codeObj = customAttrMap.get(AREA_CODE_KEY)) != null) {
             String code = codeObj.toString();
             boolean matych = code.length() == 6;
             customAttrMap.put(AREA_CODE_KEY, GLOBAL_CHINA_PREFIX + code);

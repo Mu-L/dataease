@@ -32,7 +32,9 @@ import '@/utils/DateUtil'
 import draggable from 'vuedraggable'
 import deWebsocket from '@/websocket'
 import { GaodeMap } from '@antv/l7-maps'
+import { Mix } from '@antv/g2plot'
 import * as echarts from 'echarts'
+import { clear } from 'size-sensor'
 import UmyUi from 'umy-ui'
 // 全屏插件
 import fullscreen from 'vue-fullscreen'
@@ -40,6 +42,7 @@ import VueFriendlyIframe from 'vue-friendly-iframe'
 import vueToPdf from 'vue-to-pdf'
 import VueVideoPlayer from 'vue-video-player'
 import 'video.js/dist/video-js.css'
+import '@antv/s2/dist/style.min.css'
 // 控制标签宽高成比例的指令
 import proportion from 'vue-proportion-directive'
 
@@ -57,6 +60,8 @@ Vue.prototype.$api = api
 
 Vue.prototype.$echarts = echarts
 Vue.prototype.$gaodeMap = GaodeMap
+Vue.prototype.$Mix = Mix
+Vue.prototype.$G2SizeSensorClear = clear
 
 Vue.use(UmyUi)
 

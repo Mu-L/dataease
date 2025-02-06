@@ -15,7 +15,10 @@
       </el-col>
     </el-header>
     <de-container>
-      <de-aside-container class="ms-aside-container">
+      <de-aside-container
+        close
+        class="ms-aside-container"
+      >
         <div
           v-show="showAside"
           style="width: 60px; left: 0px; top: 0px; bottom: 0px;  position: absolute"
@@ -165,12 +168,12 @@
               v-show=" show &&showIndex===1"
               :canvas-id="canvasId"
             />
-            <subject-setting v-show=" show &&showIndex===2"/>
-            <assist-component v-show=" show &&showIndex===3"/>
+            <subject-setting v-show=" show &&showIndex===2" />
+            <assist-component v-show=" show &&showIndex===3" />
           </div>
         </el-drawer>
         <!--PC端画布区域-->
-        <canvas-opt-bar v-if="!previewVisible&&!mobileLayoutStatus"/>
+        <canvas-opt-bar v-if="!previewVisible&&!mobileLayoutStatus" />
         <de-canvas
           v-if="!previewVisible&&!mobileLayoutStatus"
           ref="canvasMainRef"
@@ -188,7 +191,7 @@
           class="mobile_canvas_main"
         >
           <el-col
-            :span="8"
+            :span="10"
             class="this_mobile_canvas_cell"
           >
             <div
@@ -196,27 +199,21 @@
               :style="customCanvasMobileStyle"
               class="this_mobile_canvas"
             >
-              <el-row class="this_mobile_canvas_top"/>
+              <el-row class="this_mobile_canvas_top" />
               <el-row class="this_mobile_canvas_inner_top">
                 {{ panelInfo.name }}
               </el-row>
-              <el-row class="this_mobile_canvas_main_outer">
-                <el-row
-                  id="canvasInfoMobile"
-                  class="this_mobile_canvas_main"
-                  :style="mobileCanvasStyle"
-                >
-                  <canvas-opt-bar v-if="!previewVisible&&mobileLayoutStatus"/>
-                  <de-canvas
-                    v-if="!previewVisible&&mobileLayoutStatus"
-                    ref="canvasMainRef"
-                    :canvas-style-data="canvasStyleData"
-                    :component-data="mainCanvasComponentData"
-                    :canvas-id="canvasId"
-                    :canvas-pid="'0'"
-                    :mobile-layout-status="true"
-                  />
-                </el-row>
+              <el-row
+                v-loading="mobileLoading"
+                class="this_mobile_canvas_main_outer"
+              >
+                <iframe
+                  src="./mobile.html"
+                  frameborder="0"
+                  width="360"
+                  height="570"
+                  @load="handleLoad"
+                />
               </el-row>
               <el-row class="this_mobile_canvas_inner_bottom">
                 <el-col :span="12">
@@ -245,14 +242,14 @@
                   />
                 </el-col>
               </el-row>
-              <el-row class="this_mobile_canvas_bottom"/>
+              <el-row class="this_mobile_canvas_bottom" />
             </div>
           </el-col>
           <el-col
-            :span="16"
+            :span="14"
             class="this_mobile_canvas_cell this_mobile_canvas_wait_cell"
           >
-            <component-wait/>
+            <component-wait />
           </el-col>
         </el-row>
       </de-main-container>
@@ -270,7 +267,7 @@
           />
         </div>
         <div v-if="showBatchViewToolsAside">
-          <chart-style-batch-set/>
+          <chart-style-batch-set />
         </div>
         <div v-if="!showViewToolsAside&&!showBatchViewToolsAside">
           <el-row style="height: 40px">
@@ -289,7 +286,7 @@
             >{{ $t('panel.position_adjust') }}</span>
           </el-row>
           <el-row>
-            <position-adjust v-if="curComponent&&!curComponent.auxiliaryMatrix"/>
+            <position-adjust v-if="curComponent&&!curComponent.auxiliaryMatrix" />
             <div
               v-else
               class="view-selected-message-class"
@@ -362,12 +359,15 @@
     </el-dialog>
 
     <fullscreen
+      teleport
+      fullscreen-class="de-fullscreen-preview-index"
       style="height: 100%;background: #f7f8fa;overflow-y: auto"
       :fullscreen.sync="previewVisible"
     >
       <Preview
         v-if="previewVisible"
         :in-screen="!previewVisible"
+        :class="previewVisible && 'fullscreen-visual-selects'"
         :panel-info="panelInfo"
         :show-type="canvasStyleData.selfAdaption?'full':'width'"
         :canvas-style-data="canvasStyleData"
@@ -430,8 +430,8 @@
         <span style="float: right;">
           <span class="adapt-text"> 样式适配： </span>
           <el-select
-            style="width: 120px;margin-right: 16px"
             v-model="multiplexingStyleAdaptSelf"
+            style="width: 120px;margin-right: 16px"
             placeholder="Select"
             placement="top-start"
             size="mini"
@@ -506,6 +506,7 @@
 </template>
 
 <script>
+import dayjs from 'dayjs'
 import DeMainContainer from '@/components/dataease/DeMainContainer'
 import DeContainer from '@/components/dataease/DeContainer'
 import DeAsideContainer from '@/components/dataease/DeAsideContainer'
@@ -513,6 +514,7 @@ import { addClass, removeClass } from '@/utils'
 import FilterGroup from '../filter'
 import SubjectSetting from '../subjectSetting'
 import bus from '@/utils/bus'
+import { getThisStart, getLastStart, getAround } from '@/views/panel/filter/filterMain/time-format-dayjs.js'
 import { deepCopy, getNowCanvasComponentData, imgUrlTrans, matrixBaseChange } from '@/components/canvas/utils/utils'
 import componentList, {
   BASE_MOBILE_STYLE,
@@ -554,7 +556,8 @@ import TextAttr from '@/components/canvas/components/TextAttr'
 import { userLoginInfo } from '@/api/systemInfo/userLogin'
 import { activeWatermark } from '@/components/canvas/tools/watermark'
 import PositionAdjust from '@/views/chart/view/PositionAdjust'
-import {hexColorToRGBA} from "@/views/chart/chart/util";
+import { hexColorToRGBA } from '@/views/chart/chart/util'
+import msgCfm from '@/components/msgCfm'
 export default {
   name: 'PanelEdit',
   components: {
@@ -580,6 +583,7 @@ export default {
     ChartEdit,
     CanvasOptBar
   },
+  mixins: [msgCfm],
   data() {
     return {
       userInfo: null,
@@ -592,6 +596,7 @@ export default {
       autoMoveOffSet: 15,
       mobileEditorShow: true,
       hasStar: false,
+      mobileLoading: true,
       drawerSize: '300px',
       visible: false,
       show: false,
@@ -651,7 +656,7 @@ export default {
         { label: '适应新主题', value: true },
         { label: '保持源样式', value: false }
       ],
-      multiplexingStyleAdaptSelf : true
+      multiplexingStyleAdaptSelf: true
     }
   },
 
@@ -723,7 +728,7 @@ export default {
             background: `url(${imgUrlTrans(styleInfo.imageUrl)}) no-repeat`
           }
         } else if (styleInfo.backgroundType === 'color') {
-          const colorRGBA = hexColorToRGBA(styleInfo.color, styleInfo.alpha||100)
+          const colorRGBA = hexColorToRGBA(styleInfo.color, styleInfo.alpha === undefined ? 100 : styleInfo.alpha)
           style = {
             background: colorRGBA
           }
@@ -747,7 +752,7 @@ export default {
             ...style
           }
         } else if (this.canvasStyleData.panel.backgroundType === 'color') {
-          const colorRGBA = hexColorToRGBA(this.canvasStyleData.panel.color, this.canvasStyleData.panel.alpha||100)
+          const colorRGBA = hexColorToRGBA(this.canvasStyleData.panel.color, this.canvasStyleData.panel.alpha === undefined ? 100 : this.canvasStyleData.panel.alpha)
           style = {
             background: colorRGBA,
             ...style
@@ -775,7 +780,7 @@ export default {
     curCanvasScaleSelf() {
       return this.curCanvasScaleMap[this.canvasId]
     },
-    selectComponentCount(){
+    selectComponentCount() {
       return Object.keys(this.curMultiplexingComponents).length
     },
     ...mapState([
@@ -785,6 +790,7 @@ export default {
       'canvasStyleData',
       'curComponentIndex',
       'componentData',
+      'pcComponentData',
       'linkageSettingStatus',
       'dragComponentInfo',
       'componentGap',
@@ -816,7 +822,8 @@ export default {
         this.recordStyleChange(this.$store.state.styleChangeTimes)
       }
     },
-    mobileLayoutStatus() {
+    mobileLayoutStatus(val) {
+      this.mobileLoading = val
       this.restore()
     },
     previewVisible(val) {
@@ -848,6 +855,19 @@ export default {
     listenGlobalKeyDown()
   },
   mounted() {
+    bus.$on('mobile-status-change', this.mobileStatusChange)
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'deleteComponentWithId') {
+        this.$store.commit('deleteComponentWithId', event.data.value)
+        this.deleteComponentWithId(event.data.value)
+      }
+      if (event.data.type === 'setComponentData') {
+        this.$store.commit('setComponentData', event.data.value)
+        setTimeout(() => {
+          bus.$emit('editSave')
+        }, 1000)
+      }
+    })
     this.initWatermark()
     this.initEvents()
     const _this = this
@@ -863,6 +883,7 @@ export default {
     this.multiplexingStyleAdaptSelf = this.multiplexingStyleAdapt
   },
   beforeDestroy() {
+    bus.$off('mobile-status-change', this.mobileStatusChange)
     bus.$off('component-on-drag', this.componentOnDrag)
     bus.$off('component-dialog-style', this.componentDialogStyle)
     bus.$off('previewFullScreenClose', this.previewFullScreenClose)
@@ -874,6 +895,35 @@ export default {
     elx && elx.remove()
   },
   methods: {
+    handleLoad() {
+      this.mobileLoading = false
+      this.mobileStatusChange('openMobileLayout', { componentData: this.componentData, panelInfo: this.panelInfo, canvasStyleData: this.canvasStyleData })
+    },
+    deleteComponentWithId(id) {
+      for (let index = 0; index < this.pcComponentData.length; index++) {
+        const element = this.pcComponentData[index]
+        if (element.id && element.id === id) {
+          element.mobileSelected = false
+          if (element.type === 'de-tabs') {
+            this.deleteComponentWithId(element.id)
+          }
+          break
+        }
+      }
+    },
+    mobileStatusChange(type, value) {
+      if (!this.mobileLayoutStatus) return
+      const iframe = document.querySelector('iframe')
+      if (iframe) {
+        iframe.contentWindow.postMessage(
+          {
+            type,
+            value
+          },
+          '*'
+        )
+      }
+    },
     initWatermark() {
       if (this.panelInfo.watermarkInfo) {
         this.$nextTick(() => {
@@ -1219,8 +1269,113 @@ export default {
         bus.$emit('onRemoveLastItem')
       }
     },
+    isInRange(ele, startWindowTime, timeStamp) {
+      const {
+        intervalType,
+        regularOrTrends,
+        regularOrTrendsValue,
+        relativeToCurrent,
+        timeNum,
+        relativeToCurrentType,
+        around,
+        dynamicWindow,
+        maximumSingleQuery,
+        timeNumRange,
+        relativeToCurrentTypeRange,
+        aroundRange
+      } = ele.timeRange || {}
+      let isDynamicWindowTime = false
+      if (startWindowTime && dynamicWindow) {
+        isDynamicWindowTime =
+          dayjs(startWindowTime)
+            .add(maximumSingleQuery, 'day')
+            .startOf('day')
+            .valueOf() -
+            1000 <
+          timeStamp
+      }
+
+      if (intervalType === 'none') {
+        if (dynamicWindow) return isDynamicWindowTime
+        return false
+      }
+      let startTime
+      if (relativeToCurrent === 'custom') {
+        startTime = getAround(relativeToCurrentType, around === 'f' ? 'subtract' : 'add', timeNum)
+      } else {
+        switch (relativeToCurrent) {
+          case 'thisYear':
+            startTime = getThisStart('year')
+            break
+          case 'lastYear':
+            startTime = getLastStart('year')
+            break
+          case 'thisMonth':
+            startTime = getThisStart('month')
+            break
+          case 'lastMonth':
+            startTime = getLastStart('month')
+            break
+          case 'today':
+            startTime = getThisStart('day')
+            break
+          case 'yesterday':
+            startTime = getLastStart('day')
+            break
+          case 'monthBeginning':
+            startTime = getThisStart('month')
+            break
+          case 'yearBeginning':
+            startTime = getThisStart('year')
+            break
+
+          default:
+            break
+        }
+      }
+      const startValue = regularOrTrends === 'fixed' ? regularOrTrendsValue : startTime
+      if (intervalType === 'start') {
+        return startWindowTime < +new Date(startValue) || isDynamicWindowTime
+      }
+
+      if (intervalType === 'end') {
+        return timeStamp > +new Date(startValue) || isDynamicWindowTime
+      }
+
+      if (intervalType === 'timeInterval') {
+        const startTime =
+          regularOrTrends === 'fixed'
+            ? regularOrTrendsValue[0]
+            : getAround(relativeToCurrentType, around === 'f' ? 'subtract' : 'add', timeNum)
+        const endTime =
+          regularOrTrends === 'fixed'
+            ? regularOrTrendsValue[1]
+            : getAround(
+              relativeToCurrentTypeRange,
+              aroundRange === 'f' ? 'subtract' : 'add',
+              timeNumRange
+            )
+        return (
+          startWindowTime < +new Date(startTime) - 1000 ||
+          timeStamp > +new Date(endTime) ||
+          isDynamicWindowTime
+        )
+      }
+    },
     sureFilter() {
       this.currentFilterCom = this.$refs['filter-setting-' + this.currentFilterCom.id].getElementInfo()
+      if (this.currentFilterCom.serviceName === 'timeDateRangeWidget') {
+        const { value, attrs } = this.currentFilterCom.options
+        if (!!value && attrs.setTimeRange) {
+          const [startWindowTime, timeStamp] = attrs.default.isDynamic ? ApplicationContext.getService('timeDateRangeWidget').dynamicDateFormNow(this.currentFilterCom) : value.split(',')
+          if (this.isInRange(attrs, +startWindowTime, dayjs(+timeStamp)
+            .startOf('day')
+            .valueOf())) {
+            this.openMessageSuccess(this.$t('time.filter_range'), 'error')
+            return
+          }
+        }
+      }
       if (this.editType !== 'update') {
         adaptCurThemeCommonStyle(this.currentFilterCom)
       }
@@ -1228,7 +1383,8 @@ export default {
       this.$store.commit('recordSnapshot', 'sureFilter')
       this.$store.commit('setCurComponent', { component: this.currentFilterCom, index: this.curComponentIndex })
       this.$store.commit('setComponentFromList', this.currentFilterCom)
-      bus.$emit('reset-default-value', this.currentFilterCom.id)
+      this.$store.commit('delLastValidFilterWithId', this.currentFilterCom.id)
+      bus.$emit('reset-default-value', this.currentFilterCom)
       this.closeFilter()
     },
     reFreshComponent(component) {
@@ -1475,8 +1631,8 @@ export default {
       this.$store.commit('recordSnapshot')
       this.$store.commit('canvasChange')
     },
-    multiplexingStyleAdaptChange(value){
-      this.$store.commit('setMultiplexingStyleAdapt',value)
+    multiplexingStyleAdaptChange(value) {
+      this.$store.commit('setMultiplexingStyleAdapt', value)
     }
   }
 }
@@ -1556,14 +1712,14 @@ export default {
 .mobile_canvas_main {
   width: 80%;
   height: 90%;
-  margin-left: 10%;
+  margin-left: 7%;
   margin-top: 3%;
 }
 
 .this_mobile_canvas {
   border-radius: 30px;
-  min-width: 300px;
-  max-width: 350px;
+  min-width: 370px;
+  max-width: 370px;
   min-height: 600px;
   max-height: 700px;
   overflow: hidden;
@@ -1747,6 +1903,10 @@ export default {
 
 .dialog-css ::v-deep .el-dialog__title {
   font-size: 14px;
+}
+
+.dialog-css ::v-deep .el-dialog__headerbtn {
+  z-index: 2;
 }
 
 .dialog-css ::v-deep .el-dialog__header {

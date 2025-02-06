@@ -24,7 +24,7 @@
           >
             <el-tooltip :content="item.tooltip">
               <span style="float: left;">
-                <i :class="item.icon"/>
+                <i :class="item.icon" />
               </span>
             </el-tooltip>
           </el-radio-button>
@@ -47,7 +47,7 @@
               :value="item.value"
             >
               <span style="float: left;">
-                <i :class="item.icon"/>
+                <i :class="item.icon" />
               </span>
               <span style="float: right; color: #8492a6; font-size: 12px">{{ item.label }}</span>
             </el-option>
@@ -81,7 +81,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="iconfont icon-font_size"
+          class="iconfont iconfont-custom icon-font_size"
         />
       </el-tooltip>
 
@@ -105,7 +105,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="iconfont icon-font"
+          class="iconfont iconfont-custom icon-font"
         />
       </el-tooltip>
 
@@ -129,7 +129,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="icon iconfont icon-font-weight-bold"
+          class="icon iconfont iconfont-custom icon-font-weight-bold"
         />
       </el-tooltip>
 
@@ -154,7 +154,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="icon iconfont icon-letter_spacing"
+          class="icon iconfont iconfont-custom icon-letter_spacing"
         />
       </el-tooltip>
 
@@ -178,7 +178,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="icon iconfont icon-margin"
+          class="icon iconfont iconfont-custom icon-margin"
         />
       </el-tooltip>
 
@@ -202,7 +202,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="icon iconfont icon-touming"
+          class="icon iconfont iconfont-custom icon-touming"
         />
       </el-tooltip>
 
@@ -227,7 +227,7 @@
       >
         <i
           style="float: left;margin-top: 3px;margin-left: 2px;"
-          class="icon iconfont icon-fangxing-"
+          class="icon iconfont iconfont-custom icon-fangxing-"
         />
       </el-tooltip>
 
@@ -253,11 +253,11 @@
         <div style="width: 16px;height: 18px">
           <el-tooltip :content="$t('panel.color')">
             <i
-              class="icon iconfont icon-zimua"
+              class="icon iconfont iconfont-custom icon-zimua"
               @click="goColor"
             />
           </el-tooltip>
-          <div :style="letterDivColor"/>
+          <div :style="letterDivColor" />
           <el-color-picker
             ref="colorPicker"
             v-model="styleInfo.color"
@@ -275,11 +275,11 @@
         <div style="width: 16px;height: 18px">
           <el-tooltip :content="$t('panel.border_color')">
             <i
-              class="iconfont icon-huabi"
+              class="iconfont iconfont-custom icon-huabi"
               @click="goBoardColor"
             />
           </el-tooltip>
-          <div :style="boardDivColor"/>
+          <div :style="boardDivColor" />
           <el-color-picker
             ref="boardColorPicker"
             v-model="styleInfo.borderColor"
@@ -298,11 +298,11 @@
         <div style="width: 16px;height: 18px">
           <el-tooltip :content="$t('panel.background_color')">
             <i
-              class="iconfont icon-beijingse1"
+              class="iconfont iconfont-custom icon-beijingse1"
               @click="goBackgroundColor"
             />
           </el-tooltip>
-          <div :style="backgroundDivColor"/>
+          <div :style="backgroundDivColor" />
           <el-color-picker
             ref="backgroundColorPicker"
             v-model="styleInfo.backgroundColor"
@@ -318,7 +318,7 @@
         style="width: 20px;float: left;margin-top: 2px;margin-left: 2px;"
       >
         <el-tooltip :content="$t('panel.video_info')">
-          <VideoLinks :link-info="curComponent.videoLinks"/>
+          <VideoLinks :link-info="curComponent.videoLinks" />
         </el-tooltip>
       </div>
 
@@ -327,7 +327,7 @@
         style="width: 20px;float: left;margin-top: 2px;margin-left: 2px;"
       >
         <el-tooltip :content="$t('panel.stream_media_info')">
-          <StreamMediaLinks :link-info="curComponent.streamMediaLinks"/>
+          <StreamMediaLinks :link-info="curComponent.streamMediaLinks" />
         </el-tooltip>
       </div>
 
@@ -336,7 +336,7 @@
         style="width: 20px;float: left;margin-top: 2px;margin-left: 2px;"
       >
         <el-tooltip :content="$t('panel.web_addr')">
-          <FrameLinks :link-info="curComponent.frameLinks"/>
+          <FrameLinks :link-info="curComponent.frameLinks" />
         </el-tooltip>
       </div>
       <div
@@ -356,7 +356,7 @@
         style="width: 20px;float: left;margin-top: 2px;margin-left: 10px;"
       >
         <el-tooltip :content="$t('panel.tab_inner_style')">
-          <tab-style :style-info="styleInfo"/>
+          <tab-style :style-info="styleInfo" />
         </el-tooltip>
       </div>
 
@@ -466,34 +466,34 @@ export default {
       initFontSize: 12,
       initActiveFontSize: 18,
       miniFontSize: 12,
-      maxFontSize: 256,
+      maxFontSize: 128,
       textAlignOptions: [
         {
-          icon: 'iconfont icon-juzuo',
+          icon: 'iconfont iconfont-custom icon-juzuo',
           tooltip: this.$t('panel.text_align_left'),
           label: 'left'
         },
         {
-          icon: 'iconfont icon-align-center',
+          icon: 'iconfont iconfont-custom icon-align-center',
           tooltip: this.$t('panel.text_align_center'),
           label: 'center'
         },
         {
-          icon: 'iconfont icon-juyou',
+          icon: 'iconfont iconfont-custom icon-juyou',
           tooltip: this.$t('panel.text_align_right'),
           label: 'right'
         }
       ],
       lineStyle: [{
-        icon: 'iconfont icon-solid_line',
+        icon: 'iconfont iconfont-custom icon-solid_line',
         value: 'solid',
         label: '实线'
       }, {
-        icon: 'iconfont icon-xuxian',
+        icon: 'iconfont iconfont-custom icon-xuxian',
         value: 'dashed',
         label: '虚线'
       }, {
-        icon: 'iconfont icon-dianxian',
+        icon: 'iconfont iconfont-custom icon-dianxian',
         value: 'dotted',
         label: '点线'
       }],
@@ -800,6 +800,11 @@ export default {
 
 ::v-deep input[type='number'] {
   -moz-appearance: textfield !important;
+}
+
+div {
+  line-height: 24px;
+  font-size: 16px;
 }
 
 </style>

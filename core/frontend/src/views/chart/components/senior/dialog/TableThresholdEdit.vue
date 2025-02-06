@@ -18,7 +18,7 @@
           <el-select
             v-model="fieldItem.fieldId"
             size="mini"
-            @change="addField(fieldItem)"
+            @change="onFieldChange(fieldItem)"
           >
             <el-option
               v-for="fieldOption in fields"
@@ -72,11 +72,11 @@
           :key="index"
           class="line-item"
         >
-          <el-col :span="4">
+          <el-col :span="3">
             <el-select
               v-model="item.term"
               size="mini"
-              @change="changeThreshold"
+              @change="changeThresholdField(item, fieldItem)"
             >
               <el-option-group
                 v-for="(group,idx) in fieldItem.options"
@@ -92,24 +92,44 @@
               </el-option-group>
             </el-select>
           </el-col>
+
+          <el-col :span="3">
+            <el-select
+              v-show="!item.term.includes('null') && !item.term.includes('empty')"
+              v-model="item.field"
+              size="mini"
+              style="margin-left: 10px;"
+              @change="changeThresholdField(item, fieldItem)"
+            >
+              <el-option
+                v-for="opt in getFieldTypeOptions(fieldItem.field, item)"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
+          </el-col>
           <el-col
-            :span="10"
-            style="text-align: center;"
+            v-if="item.field === '0'"
+            :span="12"
           >
             <el-input
               v-show="!item.term.includes('null') && !item.term.includes('empty') && item.term !== 'between'"
               v-model="item.value"
               class="value-item"
-              style="margin-left: 10px;"
+              style="padding-left: 10px"
               :placeholder="$t('chart.drag_block_label_value')"
               size="mini"
               clearable
               @change="changeThreshold"
             />
-            <span v-if="item.term === 'between'">
+            <span
+              v-if="item.term === 'between'"
+              class="flex-between"
+            >
               <el-input
                 v-model="item.min"
-                class="between-item"
+                class="item-long-between"
                 :placeholder="$t('chart.axis_value_min')"
                 size="mini"
                 clearable
@@ -118,7 +138,7 @@
               <span style="margin: 0 4px;">≤{{ $t('chart.drag_block_label_value') }}≤</span>
               <el-input
                 v-model="item.max"
-                class="between-item"
+                class="item-long-between"
                 :placeholder="$t('chart.axis_value_max')"
                 size="mini"
                 clearable
@@ -127,7 +147,209 @@
             </span>
           </el-col>
           <el-col
-            :span="4"
+            v-if="item.field === '1'"
+            :span="12"
+          >
+            <span
+              v-show="!item.term.includes('null') && !item.term.includes('empty') && item.term !== 'between'"
+              class="flex-between"
+            >
+              <el-select
+                v-model="item.targetField.fieldId"
+                size="mini"
+                style="margin-left: 10px;"
+                class="item-long select-item"
+                @change="changeThresholdField(item)"
+                @visible-change="$forceUpdate()"
+              >
+                <el-option
+                  v-for="fieldOption in fieldItem.fieldOptions"
+                  :key="fieldOption.id"
+                  :label="fieldOption.name"
+                  :value="fieldOption.id"
+                >
+                  <span style="float: left">
+                    <svg-icon
+                      v-if="fieldOption.deType === 0"
+                      icon-class="field_text"
+                      class="field-icon-text"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 1"
+                      icon-class="field_time"
+                      class="field-icon-time"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 2 || fieldOption.deType === 3"
+                      icon-class="field_value"
+                      class="field-icon-value"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 5"
+                      icon-class="field_location"
+                      class="field-icon-location"
+                    />
+                  </span>
+                  <span style="float: left; color: #8492a6; font-size: 12px">{{ fieldOption.name }}</span>
+                </el-option>
+              </el-select>
+              <el-select
+                v-model="item.targetField.summary"
+                size="mini"
+                class="item-long select-item"
+                style="margin-left: 10px;"
+                :placeholder="$t('chart.aggregation')"
+                @change="changeThreshold"
+                @visible-change="$forceUpdate()"
+              >
+                <el-option
+                  v-for="opt in getSummaryOptions(fieldItem.field.deType)"
+                  :key="opt.id"
+                  :value="opt.id"
+                  :label="opt.name"
+                />
+              </el-select>
+            </span>
+
+            <span
+              v-if="item.term === 'between'"
+              class="flex-between"
+            >
+              <el-select
+                v-model="item.minField.fieldId"
+                size="mini"
+                style="margin-left: 10px;"
+                class="select-item item-short"
+                @change="changeThresholdField(item)"
+                @visible-change="$forceUpdate()"
+              >
+                <el-option
+                  v-for="fieldOption in fieldItem.fieldOptions"
+                  :key="fieldOption.id"
+                  :label="fieldOption.name"
+                  :value="fieldOption.id"
+                >
+                  <span style="float: left">
+                    <svg-icon
+                      v-if="fieldOption.deType === 0"
+                      icon-class="field_text"
+                      class="field-icon-text"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 1"
+                      icon-class="field_time"
+                      class="field-icon-time"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 2 || fieldOption.deType === 3"
+                      icon-class="field_value"
+                      class="field-icon-value"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 5"
+                      icon-class="field_location"
+                      class="field-icon-location"
+                    />
+                  </span>
+                  <span style="float: left; color: #8492a6; font-size: 12px">{{ fieldOption.name }}</span>
+                </el-option>
+              </el-select>
+              <el-select
+                v-model="item.minField.summary"
+                size="mini"
+                class="select-item item-short"
+                style="margin-left: 10px;"
+                :placeholder="$t('chart.aggregation')"
+                @change="changeThreshold"
+                @visible-change="$forceUpdate()"
+              >
+                <el-option
+                  v-for="opt in getSummaryOptions(fieldItem.field.deType)"
+                  :key="opt.id"
+                  :value="opt.id"
+                  :label="opt.name"
+                />
+              </el-select>
+              <span style="margin: 0 4px;">≤{{ $t('chart.drag_block_label_value') }}≤</span>
+              <el-select
+                v-model="item.maxField.fieldId"
+                size="mini"
+                class="select-item item-short"
+                @change="changeThresholdField(item)"
+                @visible-change="$forceUpdate()"
+              >
+                <el-option
+                  v-for="fieldOption in fieldItem.fieldOptions"
+                  :key="fieldOption.id"
+                  :label="fieldOption.name"
+                  :value="fieldOption.id"
+                >
+                  <span style="float: left">
+                    <svg-icon
+                      v-if="fieldOption.deType === 0"
+                      icon-class="field_text"
+                      class="field-icon-text"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 1"
+                      icon-class="field_time"
+                      class="field-icon-time"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 2 || fieldOption.deType === 3"
+                      icon-class="field_value"
+                      class="field-icon-value"
+                    />
+                    <svg-icon
+                      v-if="fieldOption.deType === 5"
+                      icon-class="field_location"
+                      class="field-icon-location"
+                    />
+                  </span>
+                  <span style="float: left; color: #8492a6; font-size: 12px">{{ fieldOption.name }}</span>
+                </el-option>
+              </el-select>
+              <el-select
+                v-model="item.maxField.summary"
+                size="mini"
+                class="select-item item-short"
+                style="margin-left: 10px;"
+                :placeholder="$t('chart.aggregation')"
+                @change="changeThreshold"
+                @visible-change="$forceUpdate()"
+              >
+                <el-option
+                  v-for="opt in getSummaryOptions(fieldItem.field.deType)"
+                  :key="opt.id"
+                  :value="opt.id"
+                  :label="opt.name"
+                />
+              </el-select>
+            </span>
+
+          </el-col>
+          <el-col
+            v-if="item.field === '2'"
+            :span="12"
+          >
+            <el-select
+              v-if="!item.term.includes('null') && !item.term.includes('empty') && item.term !== 'between'"
+              v-model="item.enumValues"
+              size="mini"
+              style="margin-left: 10px; width: 100%"
+              multiple
+              clearable
+            >
+              <el-option
+                v-for="value in fieldEnumValues[fieldItem.fieldId]"
+                :key="value"
+                :value="value"
+                :label="value"
+              />
+            </el-select>
+          </el-col>
+          <el-col
+            :span="3"
             style="display: flex;align-items: center;justify-content: center;"
           >
             <span class="color-title">{{ $t('chart.textColor') }}</span>
@@ -140,7 +362,7 @@
             />
           </el-col>
           <el-col
-            :span="4"
+            :span="3"
             style="display: flex;align-items: center;justify-content: center;"
           >
             <span class="color-title">{{ $t('chart.backgroundColor') }}</span>
@@ -152,7 +374,7 @@
               @change="changeThreshold"
             />
           </el-col>
-          <el-col :span="2">
+          <el-col :span="1">
             <el-button
               type="text"
               icon="el-icon-delete"
@@ -170,9 +392,12 @@
 
 <script>
 import { COLOR_PANEL } from '@/views/chart/chart/chart'
+import { post } from '@/api/dataset/dataset'
+import { parseJson } from '@/views/chart/chart/util'
 
 export default {
   name: 'TableThresholdEdit',
+  inject: ['filedList'],
   props: {
     threshold: {
       type: Array,
@@ -187,6 +412,11 @@ export default {
     return {
       thresholdArr: [],
       fields: [],
+      fieldsByType: {
+        text: [],
+        value: [],
+        date: []
+      },
       thresholdObj: {
         fieldId: '',
         field: {},
@@ -199,8 +429,25 @@ export default {
         color: '#ff0000ff',
         backgroundColor: '#ffffff00',
         min: '0',
-        max: '1'
+        max: '1',
+        targetField: {},
+        minField: {},
+        maxField: {},
+        enumValues: []
       },
+      summaryOptions: [{
+        id: 'value',
+        name: this.$t('chart.value')
+      }, {
+        id: 'avg',
+        name: this.$t('chart.avg')
+      }, {
+        id: 'max',
+        name: this.$t('chart.max')
+      }, {
+        id: 'min',
+        name: this.$t('chart.min')
+      }],
       textOptions: [
         {
           label: '',
@@ -304,7 +551,18 @@ export default {
           }]
         }
       ],
-      predefineColors: COLOR_PANEL
+      fieldTypeOptions: [
+        { label: this.$t('chart.field_fixed'), value: '0' },
+        { label: this.$t('chart.field_dynamic'), value: '1' },
+        { label: this.$t('chart.field_enum'), value: '2' }
+      ],
+      predefineColors: COLOR_PANEL,
+      fieldEnumValues: {}
+    }
+  },
+  computed: {
+    panelInfo() {
+      return this.$store.state.panel.panelInfo
     }
   },
   mounted() {
@@ -314,6 +572,33 @@ export default {
     init() {
       this.thresholdArr = JSON.parse(JSON.stringify(this.threshold))
       this.initFields()
+      const enumFields = new Set([])
+      this.thresholdArr?.forEach(ele => {
+        this.initOptions(ele)
+        if (ele.conditions) {
+          for (const item of ele.conditions) {
+            this.initConditionField(item)
+            if (item.field === '2') {
+              enumFields.add(ele.fieldId)
+            }
+          }
+        }
+      })
+      enumFields.forEach(fieldId => {
+        this.getFieldEnumValues(fieldId)
+      })
+    },
+    initConditionField(item) {
+      // 兼容旧数据
+      if (!item.targetField) {
+        item.targetField = {}
+      }
+      if (!item.minField) {
+        item.minField = {}
+      }
+      if (!item.maxField) {
+        item.maxField = {}
+      }
     },
     initOptions(item) {
       if (item.field) {
@@ -324,39 +609,64 @@ export default {
         } else {
           item.options = JSON.parse(JSON.stringify(this.valueOptions))
         }
-        item.conditions && item.conditions.forEach(ele => {
-          ele.term = ''
-        })
+        this.initFieldOptions(item)
+      }
+    },
+    initFieldOptions(item) {
+      if (item.field) {
+        if (item.field.deType === 0 || item.field.deType === 5) {
+          item.fieldOptions = this.fieldsByType.text
+        } else if (item.field.deType === 1) {
+          item.fieldOptions = this.fieldsByType.date
+        } else {
+          item.fieldOptions = this.fieldsByType.value
+        }
       }
     },
     initFields() {
-      // 暂时支持指标
       if (this.chart.type === 'table-info') {
-        if (Object.prototype.toString.call(this.chart.xaxis) === '[object Array]') {
-          this.fields = JSON.parse(JSON.stringify(this.chart.xaxis))
-        } else {
-          this.fields = JSON.parse(this.chart.xaxis)
-        }
+        this.fields.splice(0, this.fields.length, ...parseJson(this.chart.xaxis))
       } else if (this.chart.type === 'table-pivot') {
-        if (Object.prototype.toString.call(this.chart.yaxis) === '[object Array]') {
-          this.fields = JSON.parse(JSON.stringify(this.chart.yaxis))
-        } else {
-          this.fields = JSON.parse(this.chart.yaxis)
-        }
+        const yAxis = parseJson(this.chart.yaxis)
+        const xAxis = parseJson(this.chart.xaxis)
+        const xAxisExt = parseJson(this.chart.xaxisExt)
+        this.fields.splice(0, this.fields.length, ...yAxis, ...xAxis, ...xAxisExt)
       } else {
-        if (Object.prototype.toString.call(this.chart.xaxis) === '[object Array]') {
-          this.fields = this.fields.concat(JSON.parse(JSON.stringify(this.chart.xaxis)))
-        } else {
-          this.fields = this.fields.concat(JSON.parse(this.chart.xaxis))
-        }
-        if (Object.prototype.toString.call(this.chart.yaxis) === '[object Array]') {
-          this.fields = this.fields.concat(JSON.parse(JSON.stringify(this.chart.yaxis)))
-        } else {
-          this.fields = this.fields.concat(JSON.parse(this.chart.yaxis))
-        }
+        const yAxis = parseJson(this.chart.yaxis)
+        const xAxis = parseJson(this.chart.xaxis)
+        this.fields.splice(0, this.fields.length, ...yAxis, ...xAxis)
       }
-      // 暂不支持时间
-      // this.fields = this.fields.filter(ele => ele.deType !== 1)
+
+      // 区分文本、数值、日期字段
+      const compareFields = this.chart.type === 'table-info' ? this.filedList() : this.fields
+      compareFields.forEach(ele => {
+        // 视图字段和计数字段不可用
+        if (ele.chartId || ele.id === 'count') {
+          return
+        }
+        if (ele.deType === 0 || ele.deType === 5) {
+          this.fieldsByType.text.push(ele)
+        } else if (ele.deType === 1) {
+          this.fieldsByType.date.push(ele)
+        } else {
+          this.fieldsByType.value.push(ele)
+        }
+      })
+    },
+    getSummaryOptions(deType) {
+      if (deType === 1) {
+        // 时间
+        return this.summaryOptions.filter(ele => {
+          return ele.id !== 'avg'
+        })
+      } else if (deType === 0 || deType === 5) {
+        // 文本、地理位置
+        return this.summaryOptions.filter(ele => {
+          return ele.id === 'value'
+        })
+      } else {
+        return this.summaryOptions
+      }
     },
     addThreshold() {
       this.thresholdArr.push(JSON.parse(JSON.stringify(this.thresholdObj)))
@@ -366,11 +676,67 @@ export default {
       this.thresholdArr.splice(index, 1)
       this.changeThreshold()
     },
-
     changeThreshold() {
       this.$emit('onTableThresholdChange', this.thresholdArr)
     },
-
+    changeThresholdField(item, curField) {
+      switch (item.field) {
+        case '0':
+          item.targetField = {}
+          item.minField = {}
+          item.maxField = {}
+          break
+        case '1':
+          if (item.term === 'between') {
+            item.minField.curField = this.getQuotaField(item.minField.fieldId)
+            item.maxField.curField = this.getQuotaField(item.maxField.fieldId)
+            item.targetField = {}
+          } else {
+            item.targetField.curField = this.getQuotaField(item.targetField.fieldId)
+            item.minField = {}
+            item.maxField = {}
+          }
+          break
+        case '2':
+          if (!curField?.fieldId) {
+            break
+          }
+          // 时间类型只允许相等判断
+          if (curField.field.deType === 1 && !['eq', 'not_eq'].includes(item.term)) {
+            item.field = '0'
+          }
+          this.getFieldEnumValues(curField.fieldId)
+          break
+        default:
+          break
+      }
+      this.changeThreshold()
+    },
+    getFieldEnumValues(fieldId) {
+      if (this.fieldEnumValues[fieldId]) {
+        return
+      }
+      const fieldType = this.getFieldType(fieldId)
+      if (fieldType) {
+        post('/chart/view/getFieldData/' + this.chart.id + '/' + this.panelInfo.id + '/' + fieldId + '/' + fieldType, {}).then(response => {
+          this.$set(this.fieldEnumValues, fieldId, response.data?.filter(i => i && i.trim()))
+        })
+      }
+    },
+    getQuotaField(id) {
+      if (!id) {
+        return {}
+      }
+      const compareFields = this.chart.type === 'table-info' ? this.filedList() : this.fields
+      const fields = compareFields.filter(ele => {
+        return ele.id === id
+      })
+      if (fields.length === 0) {
+        return {}
+      } else {
+        return fields[0]
+      }
+    },
     addConditions(item) {
       item.conditions.push(JSON.parse(JSON.stringify(this.thresholdCondition)))
       this.changeThreshold()
@@ -379,7 +745,7 @@ export default {
       item.conditions.splice(index, 1)
       this.changeThreshold()
     },
-    addField(item) {
+    onFieldChange(item) {
       // get field
       if (this.fields && this.fields.length > 0) {
         this.fields.forEach(ele => {
@@ -389,7 +755,60 @@ export default {
           }
         })
       }
+      // 重置 term 和 field
+      item.conditions?.forEach(ele => {
+        ele.term = ''
+        if (item.field.groupType === 'q' && ele.field === '2') {
+          ele.field = '0'
+        }
+        if (item.field.groupType === 'd') {
+          if (this.chart.type === 'table-pivot' && ele.field === '1') {
+            ele.field = '0'
+          }
+          if (ele.field === '2') {
+            ele.enumValues?.splice(0)
+            this.getFieldEnumValues(item.fieldId)
+          }
+        }
+      })
       this.changeThreshold()
+    },
+    getFieldType(fieldId) {
+      let index = -1
+      index = JSON.parse(this.chart.xaxis).findIndex(i => i.id === fieldId)
+      if (index !== -1) {
+        return 'xaxis'
+      }
+      index = JSON.parse(this.chart.xaxisExt).findIndex(i => i.id === fieldId)
+      if (index !== -1) {
+        return 'xaxisExt'
+      }
+    },
+    getFieldTypeOptions(field, condition) {
+      if (field.groupType === 'q') {
+        return [
+          { label: this.$t('chart.field_fixed'), value: '0' },
+          { label: this.$t('chart.field_dynamic'), value: '1' }
+        ]
+      }
+      if (field.deType === 1 && !['eq', 'not_eq'].includes(condition.term)) {
+        if (this.chart.type === 'table-pivot') {
+          return [
+            { label: this.$t('chart.field_fixed'), value: '0' }
+          ]
+        }
+        return [
+          { label: this.$t('chart.field_fixed'), value: '0' },
+          { label: this.$t('chart.field_dynamic'), value: '1' }
+        ]
+      }
+      if (this.chart.type === 'table-pivot') {
+        return [
+          { label: this.$t('chart.field_fixed'), value: '0' },
+          { label: this.$t('chart.field_enum'), value: '2' }
+        ]
+      }
+      return this.fieldTypeOptions
     }
   }
 }
@@ -424,16 +843,32 @@ span {
   display: inline-block;
 }
 
-.between-item {
-  position: relative;
-  display: inline-block;
-  width: 90px !important;
-}
-
 .select-item {
   position: relative;
   display: inline-block;
   width: 100px !important;
+}
+
+.item-long {
+  position: relative;
+  display: inline-block;
+  width: 220px !important;
+}
+
+.item-long-between {
+  position: relative;
+  display: inline-block;
+  width: 200px !important;
+}
+
+.item-long:first-child,.item-short:first-child,.item-long-between:first-child {
+  margin-left: 10px;
+}
+
+.item-short {
+  position: relative;
+  display: inline-block;
+  width: 95px !important;
 }
 
 .el-select-dropdown__item {
@@ -461,5 +896,10 @@ span {
 .tip {
   color: #F56C6C;
   font-size: 12px;
+}
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>

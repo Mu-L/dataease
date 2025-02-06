@@ -1,12 +1,13 @@
 package io.dataease.controller;
 
-import io.dataease.commons.exception.DEException;
 import io.dataease.commons.license.DefaultLicenseService;
 import io.dataease.commons.utils.CodingUtil;
 import io.dataease.commons.utils.LogUtil;
 import io.dataease.commons.utils.ServletUtils;
+import io.dataease.plugins.common.exception.DataEaseException;
 import io.dataease.service.panel.PanelLinkService;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +29,7 @@ public class IndexController {
 
     @Resource
     private PanelLinkService panelLinkService;
+
 
     @GetMapping(value = "/")
     public String index() {
@@ -52,6 +54,10 @@ public class IndexController {
         } else {
             url = panelLinkService.getUrlByUuid(index);
         }
+        String contextPath = ServletUtils.getContextPath();
+        if (StringUtils.isNotBlank(contextPath)) {
+            url = contextPath + url;
+        }
         HttpServletResponse response = ServletUtils.response();
         try {
             // TODO 增加仪表板外部参数
@@ -60,16 +66,28 @@ public class IndexController {
             if (StringUtils.isNotEmpty(attachParams)) {
                 url = url + "&attachParams=" + attachParams;
             }
+            String fromLink = request.getParameter("fromLink");
+            if (StringUtils.isNotEmpty(fromLink)) {
+                url = url + "&fromLink=" + fromLink;
+            }
+            String ticket = request.getParameter("ticket");
+            if (StringUtils.isNotEmpty(ticket)) {
+                url = url + "&ticket=" + ticket;
+            }
             response.sendRedirect(url);
         } catch (IOException e) {
             LogUtil.error(e.getMessage());
-            DEException.throwException(e);
+            DataEaseException.throwException(e);
         }
     }
 
     @GetMapping("/tempMobileLink/{id}/{token}")
     public void tempMobileLink(@PathVariable("id") String id, @PathVariable("token") String token) {
         String url = "/#preview/" + id;
+        String contextPath = ServletUtils.getContextPath();
+        if (StringUtils.isNotBlank(contextPath)) {
+            url = contextPath + url;
+        }
         HttpServletResponse response = ServletUtils.response();
         Cookie cookie = new Cookie("Authorization", token);
         cookie.setPath("/");
@@ -79,7 +97,7 @@ public class IndexController {
             response.sendRedirect(url);
         } catch (IOException e) {
             LogUtil.error(e.getMessage());
-            DEException.throwException(e);
+            DataEaseException.throwException(e);
         }
     }
 

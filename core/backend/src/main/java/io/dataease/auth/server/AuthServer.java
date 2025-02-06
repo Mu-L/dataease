@@ -13,13 +13,12 @@ import io.dataease.auth.service.AuthUserService;
 import io.dataease.auth.util.JWTUtils;
 import io.dataease.auth.util.RsaUtil;
 import io.dataease.commons.constants.SysLogConstants;
-import io.dataease.commons.exception.DEException;
 import io.dataease.commons.utils.*;
 import io.dataease.controller.sys.request.LdapAddRequest;
-import io.dataease.exception.DataEaseException;
 import io.dataease.i18n.Translator;
 import io.dataease.plugins.common.entity.XpackLdapUserEntity;
-import io.dataease.plugins.config.SpringContextUtil;
+import io.dataease.plugins.common.exception.DataEaseException;
+import io.dataease.plugins.common.util.SpringContextUtil;
 import io.dataease.plugins.util.PluginUtils;
 import io.dataease.plugins.xpack.cas.service.CasXpackService;
 import io.dataease.plugins.xpack.ldap.dto.request.LdapValidateRequest;
@@ -27,7 +26,6 @@ import io.dataease.plugins.xpack.ldap.dto.response.ValidateResult;
 import io.dataease.plugins.xpack.ldap.service.LdapXpackService;
 import io.dataease.plugins.xpack.oidc.service.OidcXpackService;
 import io.dataease.service.sys.SysUserService;
-
 import io.dataease.service.system.SystemParameterService;
 import io.dataease.websocket.entity.WsMessage;
 import io.dataease.websocket.service.WsService;
@@ -39,14 +37,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
 
 @RestController
 public class AuthServer implements AuthApi {
@@ -114,7 +111,7 @@ public class AuthServer implements AuthApi {
         String pwd = RsaUtil.decryptByPrivateKey(RsaProperties.privateKey, loginDto.getPassword());
 
         // 增加ldap登录方式
-        Integer loginType = loginDto.getLoginType();
+        int loginType = loginDto.getLoginType();
         boolean isSupportLdap = authUserService.supportLdap();
         if (loginType == 1 && isSupportLdap) {
             AccountLockStatus accountLockStatus = authUserService.lockStatus(username, 1);
@@ -196,13 +193,28 @@ public class AuthServer implements AuthApi {
             }
             if (user.getIsAdmin() && user.getPassword().equals("40b8893ea9ebc2d631c4bb42bb1e8996")) {
                 result.put("passwordModified", false);
+                result.put("defaultPwd", "dataease");
+            }
+            if (!user.getIsAdmin() && user.getPassword().equals(CodingUtil.md5(DEFAULT_PWD))) {
+                result.put("passwordModified", false);
+                result.put("defaultPwd", DEFAULT_PWD);
+            }
+            if (user.getIsAdmin()) {
+                result.put("validityPeriod", -1);
+            } else {
+                Integer validityPeriod = systemParameterService.pwdValidityPeriod(user.getUserId());
+                if (validityPeriod.equals(0)) {
+                    DataEaseException.throwException("pwdValidityPeriod");
+                }
+                result.put("validityPeriod", validityPeriod);
             }
         }
-
+        Long expireTime = System.currentTimeMillis() + JWTUtils.getExpireTime();
         TokenInfo tokenInfo = TokenInfo.builder().userId(user.getUserId()).username(username).build();
         String token = JWTUtils.sign(tokenInfo, realPwd);
         // 记录token操作时间
         result.put("token", token);
+        result.put("expireTime", expireTime);
         ServletUtils.setToken(token);
         DeLogUtils.save(SysLogConstants.OPERATE_TYPE.LOGIN, SysLogConstants.SOURCE_TYPE.USER, user.getUserId(), null, null, null);
         authUserService.unlockAccount(username, ObjectUtils.isEmpty(loginType) ? 0 : loginType);
@@ -323,7 +335,7 @@ public class AuthServer implements AuthApi {
                     oidcXpackService.logout(idToken);
                 } catch (Exception e) {
                     LogUtil.error(e.getMessage(), e);
-                    DEException.throwException("oidc_logout_error");
+                    DataEaseException.throwException("oidc_logout_error");
                 }
             }
         }
@@ -344,7 +356,7 @@ public class AuthServer implements AuthApi {
                 result = casXpackService.logout();
             } catch (Exception e) {
                 LogUtil.error(e.getMessage(), e);
-                DEException.throwException("cas_logout_error");
+                DataEaseException.throwException("cas_logout_error");
             }
         }
         try {

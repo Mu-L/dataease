@@ -61,6 +61,16 @@
               @change="changeTooltipAttr('backgroundColor')"
             />
           </el-form-item>
+          <el-form-item
+            v-show="showProperty('showGap')"
+            :label="$t('chart.show_gap')"
+            class="form-item"
+          >
+            <el-checkbox
+              v-model="tooltipForm.showGap"
+              @change="changeTooltipAttr('showGap')"
+            />
+          </el-form-item>
         </div>
       </el-form>
     </el-col>
@@ -127,7 +137,7 @@ export default {
     },
     init() {
       const arr = []
-      for (let i = 10; i <= 20; i = i + 2) {
+      for (let i = 6; i <= 20; i = i + 2) {
         arr.push({
           name: i + '',
           value: i + ''
@@ -165,6 +175,14 @@ export default {
 .form-item ::v-deep .el-form-item__label{
   font-size: 12px;
 }
+
+.form-item ::v-deep .el-checkbox__label {
+  font-size: 12px;
+}
+.form-item ::v-deep .el-radio__label {
+  font-size: 12px;
+}
+
 .el-select-dropdown__item{
   padding: 0 20px;
 }

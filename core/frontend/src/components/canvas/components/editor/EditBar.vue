@@ -89,6 +89,16 @@
           @click.stop="exportExcelDownload()"
         />
       </span>
+      <span
+        v-if="exportFormattedExcelShow"
+        :title="$t('chart.export_formatted_excel')"
+        @click.stop="exportFormattedExcel()"
+      >
+        <svg-icon
+          style="font-size: 14px; color: white; margin-right: 3px"
+          icon-class="ds-excel-format"
+        />
+      </span>
       <setting-menu
         v-if="activeModel==='edit'"
         style="float: right;height: 24px!important;"
@@ -145,7 +155,7 @@
           :target="curComponent.hyperlinks.openMode "
           :href="curComponent.hyperlinks.content "
         >
-          <i class="icon iconfont icon-com-jump"/>
+          <i class="icon iconfont icon-com-jump" />
         </a>
       </span>
 
@@ -153,6 +163,7 @@
         v-if="chart && showMapLayerController"
         :chart="chart"
         :series-id-map="seriesIdMap"
+        :show-edit-position="showEditPosition"
       />
     </div>
 
@@ -205,6 +216,8 @@ import { uploadFileResult } from '@/api/staticResource/staticResource'
 import eventBus from '@/components/canvas/utils/eventBus'
 import { hasDataPermission } from '@/utils/permission'
 import { exportExcelDownload } from '@/components/canvas/utils/utils'
+import { Button } from 'element-ui'
+import { exportPivotExcel } from '@/views/chart/chart/common/common_table'
 
 export default {
   components: { Background, LinkJumpSet, FieldsList, SettingMenu, LinkageField, MapLayerController },
@@ -294,7 +307,15 @@ export default {
       return this.curComponent.type === 'view' && this.terminal === 'pc' && this.curComponent.propValue.innerType && this.curComponent.propValue.innerType !== 'richTextView'
     },
     exportExcelShow() {
-      return this.detailsShow && hasDataPermission('export', this.$store.state.panel.panelInfo.privileges) && this.chart
+      return this.detailsShow && hasDataPermission('export', this.$store.state.panel.panelInfo.privileges) && this.chart && this.chart.dataFrom !== 'template'
+    },
+    exportFormattedExcelShow() {
+      return this.detailsShow &&
+        hasDataPermission('export', this.$store.state.panel.panelInfo.privileges) &&
+        this.chart &&
+        this.chart.dataFrom !== 'template' &&
+        this.chart.type === 'table-pivot' &&
+        JSON.parse(this.chart.customAttr).size?.tableLayoutMode !== 'tree'
     },
     enlargeShow() {
       return this.curComponent.type === 'view' && this.curComponent.propValue.innerType && this.curComponent.propValue.innerType !== 'richTextView' && !this.curComponent.propValue.innerType.includes('table')
@@ -468,8 +489,84 @@ export default {
     showViewDetails(openType = 'details') {
       this.$emit('showViewDetails', { openType: openType })
     },
+    exportDataCb(val) {
+      if (val && val.success) {
+        this.openMessageLoading(this.exportData)
+      }
+
+      if (val && val.success === false) {
+        this.openMessageSuccess(`${this.chart.title ? this.chart.title : this.chart.name} 导出失败，前往`, 'error', this.exportData)
+      }
+    },
+    exportData() {
+      bus.$emit('data-export-center')
+    },
+    openMessageLoading(cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-loading`
+      const customClass = `de-message-loading de-message-export`
+      this.$message({
+        message: h('p', null, [
+          this.$t('data_export.exporting'),
+          h(
+            Button,
+            {
+              props: {
+                type: 'text'
+              },
+              class: 'btn-text',
+              on: {
+                click: () => {
+                  cb()
+                }
+              }
+            },
+            this.$t('data_export.export_center')
+          ),
+          this.$t('data_export.export_info')
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
+    openMessageSuccess(text, type, cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-${type || 'success'}`
+      const customClass = `de-message-${type || 'success'} de-message-export`
+      this.$message({
+        message: h('p', null, [
+          h('span', null, text),
+          h(
+            Button,
+            {
+              props: {
+                type: 'text'
+              },
+              class: 'btn-text',
+              on: {
+                click: () => {
+                  cb()
+                }
+              }
+            },
+            this.$t('data_export.export_center')
+          )
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
     exportExcelDownload() {
-      exportExcelDownload(this.chart)
+      exportExcelDownload(this.chart, null, null, null, null, null, this.exportDataCb)
+    },
+    exportFormattedExcel() {
+      const instance = this.$store.state.chart.tableInstance[this.chart.id]
+      if (!instance) {
+        return
+      }
+      exportPivotExcel(instance, this.chart)
     },
     auxiliaryMatrixChange() {
       if (this.curComponent.auxiliaryMatrix) {
@@ -495,8 +592,12 @@ export default {
     recordMatrixCurShadowStyle() {
       const left = (this.curComponent.x - 1) * this.curCanvasScaleSelf.matrixStyleWidth
       const top = (this.curComponent.y - 1) * this.curCanvasScaleSelf.matrixStyleHeight
-      const width = this.curComponent.sizex * this.curCanvasScaleSelf.matrixStyleWidth
+      let width = this.curComponent.sizex * this.curCanvasScaleSelf.matrixStyleWidth
       const height = this.curComponent.sizey * this.curCanvasScaleSelf.matrixStyleHeight
+      const ruleWidth = this.curCanvasScaleSelf.scalePointWidth * this.canvasStyleData.width - 5
+      if (width > ruleWidth) {
+        width = ruleWidth
+      }
       const style = {
         left: left,
         top: top,
@@ -573,9 +674,10 @@ export default {
 
 <style lang="scss" scoped>
 .bar-main {
+  line-height: 24px;
   position: absolute;
   float: right;
-  z-index: 2;
+  z-index: 10;
   border-radius: 2px;
   padding-left: 3px;
   padding-right: 0px;

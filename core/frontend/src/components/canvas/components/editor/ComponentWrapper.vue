@@ -2,6 +2,7 @@
   <div
     :style="getOutStyleDefault(config.style)"
     class="component component-outer"
+    :class="{'component-active': filterActive, 'user-view': config.component === 'user-view'}"
     @click="handleClick"
     @mousedown="elementMouseDown"
   >
@@ -39,6 +40,7 @@
         :style="getComponentStyleDefault(config.style)"
         style="overflow: hidden"
         :out-style="config.style"
+        :terminal="terminal"
         :is-relation="isRelation"
         :element="config"
         :in-screen="inScreen"
@@ -46,6 +48,7 @@
         :h="config.style.height"
         :search-count="searchCount"
         :canvas-id="canvasId"
+        @filter-loaded="filterLoaded"
       />
       <component
         :is="config.component"
@@ -68,6 +71,7 @@
         :screen-shot="screenShot"
         :canvas-style-data="canvasStyleData"
         :show-position="showPosition"
+        :user-id="userId"
         @fill-chart-2-parent="setChartData"
       />
     </div>
@@ -76,7 +80,6 @@
 
 <script>
 import { getStyle } from '@/components/canvas/utils/style'
-import runAnimation from '@/components/canvas/utils/runAnimation'
 import { mixins } from '@/components/canvas/utils/events'
 import { mapState } from 'vuex'
 import DeOutWidget from '@/components/dataease/DeOutWidget'
@@ -146,6 +149,10 @@ export default {
     isRelation: {
       type: Boolean,
       default: false
+    },
+    userId: {
+      type: String,
+      require: false
     }
   },
   data() {
@@ -157,10 +164,13 @@ export default {
     }
   },
   computed: {
+    filterActive() {
+      return this.curComponent && this.config.id === this.curComponent.id && this.config.type === 'custom'
+    },
     chart() {
       if (this.config.propValue?.viewId) {
-        const viewInfo = this.panelViewDetailsInfo[this.config.propValue.viewId];
-        return viewInfo?JSON.parse(viewInfo):null
+        const viewInfo = this.panelViewDetailsInfo[this.config.propValue.viewId]
+        return viewInfo ? JSON.parse(viewInfo) : null
       }
       return null
     },
@@ -226,10 +236,15 @@ export default {
       'panelViewDetailsInfo'
     ])
   },
-  mounted() {
-    runAnimation(this.$el, this.config.animations)
-  },
   methods: {
+    triggerFilterLoaded(p) {
+      if (this.config.type === 'de-tabs') {
+        this.$refs.wrapperChild?.triggerTabsFilterLoaded(p)
+      }
+    },
+    filterLoaded(p) {
+      this.$emit('filter-loaded', p)
+    },
     getComponentId() {
       return this.config.id
     },
@@ -313,7 +328,13 @@ export default {
     elementMouseDown(e) {
       // // private 设置当前组件数据及状态
       this.$store.commit('setClickComponentStatus', true)
-      if (this.config.component !== 'v-text' && this.config.component !== 'rect-shape' && this.config.component !== 'de-input-search' && this.config.component !== 'de-select-grid' && this.config.component !== 'de-number-range' && this.config.component !== 'de-date') {
+      if (this.config.component !== 'v-text' &&
+        this.config.component !== 'rect-shape' &&
+        this.config.component !== 'de-input-search' &&
+        this.config.component !== 'de-select-grid' &&
+        this.config.component !== 'de-number-range' &&
+        this.config.component !== 'de-date' &&
+        (this.config.component === 'user-view' && !['label', 'text'].includes(this.config.propValue?.innerType))) {
         e.preventDefault()
       }
       // 阻止冒泡事件
@@ -354,12 +375,6 @@ export default {
 .component {
   position: absolute;
 }
-.component-outer {
-  transform: translate(0);
-}
-.component-outer:hover {
-  box-shadow: 0px 0px 3px #0a7be0;
-}
 
 .gap_class {
   padding: 5px;
@@ -374,7 +389,6 @@ export default {
 .main_view {
   position: relative;
   background-size: 100% 100% !important;
-  z-index: 1;
 }
 
 .component {
@@ -387,5 +401,16 @@ export default {
   left: 0;
   width: 100% !important;
   height: 100% !important;
+}
+
+// .component-outer {
+//   transform: none;
+// }
+
+.component-active {
+  z-index: 1;
+}
+.user-view {
+  transform: translate(0);
 }
 </style>

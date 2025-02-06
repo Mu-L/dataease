@@ -1048,14 +1048,7 @@ export default {
     },
     listTaskLog(loading = true) {
       const params = {
-        conditions: [
-          {
-            field: 'dataset_table_task_log.table_id',
-            operator: 'eq',
-            value: this.table.id
-          }
-        ],
-        orders: []
+        tableId: [this.table.id]
       }
       post(
         '/dataset/taskLog/listForDataset/' +
@@ -1214,7 +1207,7 @@ export default {
       justify-content: space-between;
       padding-bottom: 9px;
       &:nth-child(1) {
-        font-family: PingFang SC;
+        font-family: AlibabaPuHuiTi;
         font-size: 14px;
         font-weight: 400;
         color: var(--deTextPrimary, #1f2329);

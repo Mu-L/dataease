@@ -47,7 +47,7 @@
           <el-collapse-item
             v-show="showPropertiesCollapse(['size-selector'])"
             name="size"
-            :title="(chart.type && chart.type.includes('table')) ? $t('chart.table_config') : $t('chart.size')"
+            :title="(chart.type && chart.type.includes('table')) ? $t('chart.table_config') : chart.type.includes('radar') ? $t('chart.axis') : $t('chart.size')"
           >
             <size-selector
               :param="param"
@@ -60,7 +60,7 @@
           <el-collapse-item
             v-show="showPropertiesCollapse(['size-selector-ant-v'])"
             name="size"
-            :title="(chart.type && chart.type.includes('table')) ? $t('chart.table_config') : $t('chart.size')"
+            :title="(chart.type && chart.type.includes('table')) ? $t('chart.table_config') : chart.type.includes('radar') ? $t('chart.axis') : $t('chart.size')"
           >
             <size-selector-ant-v
               :param="param"
@@ -218,7 +218,7 @@
           <el-collapse-item
             v-show="showPropertiesCollapse(['split-selector', 'split-selector-ant-v'])"
             name="split"
-            :title="$t('chart.split')"
+            :title="$t('chart.axis')"
           >
             <split-selector
               v-if="showProperties('split-selector')"
@@ -260,7 +260,7 @@
             />
           </el-collapse-item>
           <el-collapse-item
-            v-show="showPropertiesCollapse(['legend-selector', 'legend-selector-ant-v'])"
+            v-if="showPropertiesCollapse(['legend-selector', 'legend-selector-ant-v']) && !(chart.type === 'bar-time-range' && !chart.aggregate)"
             name="legend"
             :title="$t('chart.legend')"
           >
@@ -471,13 +471,13 @@ export default {
       return false
     },
     xAisTitle() {
-      if (this.chart.type === 'bidirectional-bar') {
+      if (this.chart.type === 'bidirectional-bar' || this.chart.type === 'bar-time-range') {
         return this.$t('chart.yAxis')
       }
       return this.$t('chart.xAxis')
     },
     yAxisTitle() {
-      if (this.chart.type === 'bidirectional-bar') {
+      if (this.chart.type === 'bidirectional-bar' || this.chart.type === 'bar-time-range') {
         return this.$t('chart.xAxis')
       }
       if (this.chart.type === 'chart-mix') {
@@ -764,6 +764,16 @@ span {
 
 .form-item ::v-deep .el-form-item__label {
   font-size: 12px;
+}
+
+.form-item {
+  ::v-deep .el-form-item__content {
+    .el-checkbox {
+      .el-checkbox__label {
+        font-size: 12px;
+      }
+    }
+  }
 }
 
 .no-properties {

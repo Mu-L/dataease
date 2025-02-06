@@ -1,6 +1,7 @@
 <template>
   <div
     :id="previewMainDomId"
+    :ref="previewOutRefId"
     class="bg"
     :style="customStyle"
     @scroll="canvasScroll"
@@ -8,8 +9,19 @@
     <canvas-opt-bar
       v-if="canvasId==='canvas-main'"
       ref="canvas-opt-bar"
+      :terminal="terminal"
+      :canvas-style-data="canvasStyleData"
+      :back-to-top-btn="backToTopBtnShow"
+      @link-export-pdf="downloadAsPDF"
+      @back-to-top="backToTop"
+    />
+    <link-opt-bar
+      v-if="linkOptBarShow"
+      ref="link-opt-bar"
+      :terminal="terminal"
       :canvas-style-data="canvasStyleData"
       @link-export-pdf="downloadAsPDF"
+      @back-to-top="backToTop"
     />
     <div
       :id="previewDomId"
@@ -59,6 +71,8 @@
           :screen-shot="screenShot"
           :canvas-style-data="canvasStyleData"
           :show-position="showPosition"
+          :user-id="userId"
+          @filter-loaded="filterLoaded"
         />
       </div>
     </div>
@@ -104,24 +118,48 @@
       class="dialog-css"
       :destroy-on-close="true"
       :show-close="true"
-      :append-to-body="false"
+      append-to-body
       top="5vh"
     >
       <span
         v-if="chartDetailsVisible"
         style="position: absolute;right: 70px;top:15px"
       >
+        <span v-if="showChartInfoType==='enlarge' && hasDataPermission('export',panelInfo.privileges)&& showChartInfo && showChartInfo.type !== 'symbol-map'">
+          <span style="font-size: 12px">
+            {{ $t('panel.export_pixel') }}
+          </span>
+          <el-select
+            v-model="pixel"
+            style="width: 120px; margin-right: 8px; margin-top: -1px"
+            :popper-append-to-body="false"
+            size="mini"
+          >
+            <el-option-group
+              v-for="group in pixelOptions"
+              :key="group.label"
+              :label="group.label"
+            >
+              <el-option
+                v-for="item in group.options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-option-group>
+          </el-select>
+          <el-button
+            class="el-icon-picture-outline"
+            size="mini"
+            :disabled="imageDownloading"
+            @click="exportViewImg"
+          >
+            {{ $t('chart.export_img') }}
+          </el-button>
+        </span>
+
         <el-button
-          v-if="showChartInfoType==='enlarge' && hasDataPermission('export',panelInfo.privileges)&& showChartInfo && showChartInfo.type !== 'symbol-map'"
-          class="el-icon-picture-outline"
-          size="mini"
-          :disabled="imageDownloading"
-          @click="exportViewImg"
-        >
-          {{ $t('chart.export_img') }}
-        </el-button>
-        <el-button
-          v-if="showChartInfoType==='details'&& hasDataPermission('export',panelInfo.privileges)"
+          v-if="showChartInfoType==='details'&& showChartInfo.dataFrom !== 'template' && hasDataPermission('export',panelInfo.privileges)"
           size="mini"
           :disabled="$store.getters.loadingMap[$store.getters.currentPath]"
           @click="exportExcel"
@@ -131,10 +169,22 @@
             class="ds-icon-excel"
           />{{ $t('chart.export') }}Excel
         </el-button>
+        <el-button
+          v-if="showChartInfoType==='details' && showChartInfo.dataFrom !== 'template' && !userId && hasDataPermission('export',panelInfo.privileges)"
+          size="mini"
+          :disabled="$store.getters.loadingMap[$store.getters.currentPath]"
+          @click="exportSourceDetails"
+        >
+          <svg-icon
+            icon-class="ds-excel"
+            class="ds-icon-excel"
+          />{{ $t('chart.export_source') }}
+        </el-button>
       </span>
       <user-view-dialog
         v-if="chartDetailsVisible"
         ref="userViewDialog-canvas-main"
+        :user-id="userId"
         :chart="showChartInfo"
         :chart-table="showChartTableInfo"
         :canvas-style-data="canvasStyleData"
@@ -145,6 +195,7 @@
 </template>
 
 <script>
+import { Button } from 'element-ui'
 import { getStyle } from '@/components/canvas/utils/style'
 import { mapState } from 'vuex'
 import ComponentWrapper from './ComponentWrapper'
@@ -155,7 +206,7 @@ import eventBus from '@/components/canvas/utils/eventBus'
 import elementResizeDetectorMaker from 'element-resize-detector'
 import CanvasOptBar from '@/components/canvas/components/editor/CanvasOptBar'
 import bus from '@/utils/bus'
-import { buildFilterMap, buildViewKeyMap, formatCondition, valueValid, viewIdMatch } from '@/utils/conditionUtil'
+import { buildFilterMap, buildViewKeyMap, formatCondition, valueValid, viewIdMatch, buildAfterFilterLoaded } from '@/utils/conditionUtil'
 import { hasDataPermission } from '@/utils/permission'
 import { activeWatermark } from '@/components/canvas/tools/watermark'
 import { proxyUserLoginInfo, userLoginInfo } from '@/api/systemInfo/userLogin'
@@ -164,11 +215,13 @@ import { queryAll } from '@/api/panel/pdfTemplate'
 import PDFPreExport from '@/views/panel/export/PDFPreExport'
 import { listenGlobalKeyDownPreview } from '@/components/canvas/utils/shortcutKey'
 import UserViewDialog from '@/components/canvas/customComponent/UserViewDialog'
-import {hexColorToRGBA} from "@/views/chart/chart/util";
+import { hexColorToRGBA } from '@/views/chart/chart/util'
+import { isMobile } from '@/utils/index'
+import LinkOptBar from '@/components/canvas/components/editor/LinkOptBar'
 
 const erd = elementResizeDetectorMaker()
 export default {
-  components: { UserViewDialog, ComponentWrapper, CanvasOptBar, PDFPreExport },
+  components: { LinkOptBar, UserViewDialog, ComponentWrapper, CanvasOptBar, PDFPreExport },
   model: {
     prop: 'show',
     event: 'change'
@@ -219,7 +272,7 @@ export default {
     showPosition: {
       type: String,
       required: false,
-      default: 'NotProvided'
+      default: 'preview'
     },
     panelInfo: {
       type: Object,
@@ -237,6 +290,7 @@ export default {
   },
   data() {
     return {
+      backToTopBtnShow: false,
       imageDownloading: false,
       chartDetailsVisible: false,
       canvasMain: null,
@@ -249,6 +303,7 @@ export default {
       previewMainDomId: 'preview-main-' + this.canvasId,
       previewDomId: 'preview-' + this.canvasId,
       previewRefId: 'preview-ref-' + this.canvasId,
+      previewOutRefId: 'preview-out-ref-' + this.canvasId,
       previewTempDomId: 'preview-temp-' + this.canvasId,
       previewTempRefId: 'preview-temp-ref-' + this.canvasId,
       isShowPreview: false,
@@ -259,19 +314,23 @@ export default {
       ],
       needToChangeWidth: [
         'left',
-        'width',
+        'width'
+      ],
+      needToChangeInnerWidth: [
         'fontSize',
         'activeFontSize',
         'borderWidth',
         'letterSpacing'
       ],
       scaleWidth: '100',
+      scaleWidthLay: '100',
       scaleHeight: '100',
       timer: null,
-      componentDataShow: null,
+      componentDataShow: [],
       mainWidth: '100%',
       mainHeight: '100%',
       searchCount: 0,
+      filterMapCache: {},
       // 布局展示 1.pc pc端布局 2.mobile 移动端布局
       terminal: 'pc',
       buttonFilterMap: null,
@@ -282,10 +341,50 @@ export default {
       pdfTemplateSelectedIndex: 0,
       pdfTemplateContent: '',
       templateInfo: {},
-      pdfTemplateAll: []
+      pdfTemplateAll: [],
+      pixelOptions: [
+        {
+          label: 'Windows(16:9)',
+          options: [
+            {
+              value: '1920 * 1080',
+              label: '1920 * 1080'
+            },
+            {
+              value: '1600 * 900',
+              label: '1600 * 900'
+            },
+            {
+              value: '1280 * 720',
+              label: '1280 * 720'
+            }
+          ]
+        },
+        {
+          label: 'MacOS(16:10)',
+          options: [
+            {
+              value: '2560 * 1600',
+              label: '2560 * 1600'
+            },
+            {
+              value: '1920 * 1200',
+              label: '1920 * 1200'
+            },
+            {
+              value: '1680 * 1050',
+              label: '1680 * 1050'
+            }
+          ]
+        }
+      ],
+      pixel: '1280 * 720'
     }
   },
   computed: {
+    linkOptBarShow() {
+      return this.canvasId==='canvas-main' && this.canvasStyleData.showPublicLinkButton
+    },
     screenShotStatues() {
       return this.exporting || this.screenShot || this.backScreenShot
     },
@@ -344,7 +443,7 @@ export default {
             background: `url(${imgUrlTrans(styleInfo.imageUrl)}) no-repeat`
           }
         } else if (styleInfo.backgroundType === 'color') {
-          const colorRGBA = hexColorToRGBA(styleInfo.color, styleInfo.alpha||100)
+          const colorRGBA = hexColorToRGBA(styleInfo.color, styleInfo.alpha === undefined ? 100 : styleInfo.alpha)
           style = {
             background: colorRGBA
           }
@@ -357,7 +456,7 @@ export default {
       if (this.backScreenShot) {
         style.height = this.mainHeight
       } else {
-        style.padding = '5px'
+        style.padding = '0px'
       }
       return style
     },
@@ -369,6 +468,8 @@ export default {
       return this.componentDataShow || []
     },
     ...mapState([
+      'sourceComponentData',
+      'previewCanvasScale',
       'isClickComponent'
     ]),
 
@@ -378,6 +479,21 @@ export default {
     },
     filterMap() {
       const result = buildFilterMap(this.componentData)
+      Object.keys(result).forEach(ele => {
+        if (this.filterMapCache[ele]?.length) {
+          result[ele].forEach(itx => {
+            const condition = this.filterMapCache[ele].find(item => item.componentId === itx.componentId && itx.cacheObj)
+            if (condition) {
+              itx.cacheObj = condition.cacheObj
+            }
+          })
+          if (!result[ele].length) {
+            result[ele] = this.filterMapCache[ele]
+          }
+        } else {
+          this.filterMapCache[ele] = result[ele]
+        }
+      })
       if (this.searchButtonInfo && this.searchButtonInfo.buttonExist && !this.searchButtonInfo.autoTrigger && this.searchButtonInfo.relationFilterIds) {
         for (const key in result) {
           if (Object.hasOwnProperty.call(result, key)) {
@@ -411,14 +527,23 @@ export default {
     },
     mainHeight: {
       handler(newVal, oldVla) {
-        const _this = this
-        _this.$nextTick(() => {
-          if (_this.screenShotStatues) {
-            _this.initWatermark('preview-temp-canvas-main')
-          } else {
-            _this.initWatermark()
-          }
+        this.$nextTick(() => {
+          this.reloadWatermark()
         })
+      },
+      deep: true
+    },
+    canvasInfoTempStyle: {
+      handler(newVal, oldVla) {
+        this.$nextTick(() => {
+          this.reloadWatermark()
+        })
+      },
+      deep: true
+    },
+    screenShotStatues: {
+      handler(newVal, oldVla) {
+        this.reloadWatermark()
       }
     }
   },
@@ -449,19 +574,31 @@ export default {
     if (this.$refs[this.previewRefId]) {
       erd.uninstall(this.$refs[this.previewRefId])
     }
-    erd.uninstall(this.canvasMain)
-    erd.uninstall(this.tempCanvas)
+    this.canvasMain && erd.uninstall(this.canvasMain)
+    this.tempCanvas && erd.uninstall(this.tempCanvas)
     clearInterval(this.timer)
     this.canvasId === 'canvas-main' && bus.$off('pcChartDetailsDialog', this.openChartDetailsDialog)
     bus.$off('trigger-search-button', this.triggerSearchButton)
     bus.$off('trigger-reset-button', this.triggerResetButton)
   },
   methods: {
+    reloadWatermark() {
+      if (this.screenShotStatues) {
+        this.initWatermark('preview-temp-canvas-main')
+      } else {
+        this.initWatermark()
+      }
+    },
+    filterLoaded(p) {
+      buildAfterFilterLoaded(this.filterMap, p)
+      this.filterMapCache = {}
+      this.getWrapperChildRefs().forEach(item => item.triggerFilterLoaded(p))
+    },
     getWrapperChildRefs() {
       return this.$refs['viewWrapperChild']
     },
     getAllWrapperChildRefs() {
-      let allChildRefs = []
+      const allChildRefs = []
       const currentChildRefs = this.getWrapperChildRefs()
       if (currentChildRefs && currentChildRefs.length > 0) {
         allChildRefs.push.apply(allChildRefs, currentChildRefs)
@@ -560,7 +697,23 @@ export default {
 
       result.relationFilterIds = matchFilters.map(item => item.id)
 
+      let matchViewIds = []
+      for (let index = 0; index < matchFilters.length; index++) {
+        const item = matchFilters[index]
+        if (!item.options.attrs.viewIds?.length) {
+          matchViewIds = null
+          break
+        }
+        matchViewIds = matchViewIds.concat(item.options.attrs.viewIds)
+      }
       let viewKeyMap = buildViewKeyMap(panelItems)
+      if (matchViewIds) {
+        matchViewIds = [...new Set(matchViewIds)]
+        const keys = Object.keys(viewKeyMap).filter(key => !matchViewIds.includes(key))
+        keys.forEach(key => {
+          delete viewKeyMap[key]
+        })
+      }
       viewKeyMap = this.buildViewKeyFilters(matchFilters, viewKeyMap, isClear)
       result.filterMap = viewKeyMap
       return result
@@ -585,7 +738,11 @@ export default {
         }
         param = wrapperChild.getCondition && wrapperChild.getCondition()
         const condition = formatCondition(param)
-        const vValid = valueValid(condition)
+        let vValid = valueValid(condition)
+        const required = element.options.attrs.required
+        condition.requiredInvalid = required && !vValid
+        condition['triggerId'] = uuid.v1()
+        vValid = vValid || required
         const filterComponentId = condition.componentId
         const conditionCanvasId = wrapperChild.getCanvasId && wrapperChild.getCanvasId()
         Object.keys(result).forEach(viewId => {
@@ -623,9 +780,8 @@ export default {
       return -1
     },
     _isMobile() {
-      const flag = navigator.userAgent.match(/(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i)
+      const flag = isMobile()
       this.terminal = flag ? 'mobile' : 'pc'
-      // this.terminal = 'mobile'
     },
     canvasStyleDataInit() {
       // 数据刷新计时器
@@ -655,7 +811,7 @@ export default {
     restore() {
       const canvasHeight = document.getElementById(this.previewDomId).offsetHeight
       const canvasWidth = document.getElementById(this.previewDomId).offsetWidth
-      this.scaleWidth = (canvasWidth) * 100 / this.canvasStyleData.width // 获取宽度比
+      this.scaleWidth = (canvasWidth) * 100 / (this.canvasStyleData.width - 8) // 获取宽度比
       // 如果是后端截图方式使用 的高度伸缩比例和宽度比例相同
       if (this.backScreenShot) {
         this.scaleHeight = this.scaleWidth
@@ -664,8 +820,8 @@ export default {
       }
       if (this.isMainCanvas()) {
         this.$store.commit('setPreviewCanvasScale', {
-          scaleWidth: (this.scaleWidth / 100),
-          scaleHeight: (this.scaleHeight / 100)
+          scaleWidth: (this.canvasStyleData.autoSizeAdaptor || this.terminal === 'mobile') ? (this.scaleWidth / 100) : 1,
+          scaleHeight: (this.canvasStyleData.autoSizeAdaptor || this.terminal === 'mobile') ? (this.scaleHeight / 100) : 1
         })
       }
       this.handleScaleChange()
@@ -681,42 +837,140 @@ export default {
     format(value, scale) {
       return value * scale / 100
     },
+
+    formatPoint(value, pointScale) {
+      return value * pointScale
+    },
+    findSourceComponent(id) {
+      return this.sourceComponentData.filter(element => element.id === id)[0]
+    },
     handleScaleChange() {
       if (this.componentData) {
         const componentData = deepCopy(this.componentData)
         componentData.forEach(component => {
+          if (component.type === 'custom' && !this._isMobile) {
+            const sourceComponent = this.findSourceComponent(component.id)
+            if (sourceComponent?.style) {
+              component.style = deepCopy(this.findSourceComponent(component.id).style)
+            }
+          }
           Object.keys(component.style).forEach(key => {
             if (this.needToChangeHeight.includes(key)) {
               component.style[key] = this.format(component.style[key], this.scaleHeight)
             }
             if (this.needToChangeWidth.includes(key)) {
-              if ((key === 'fontSize' || key === 'activeFontSize') && (this.terminal === 'mobile' || ['custom', 'v-text'].includes(component.type))) {
+              component.style[key] = this.format(component.style[key], this.scaleWidth)
+            }
+            if (this.needToChangeInnerWidth.includes(key)) {
+              if ((key === 'fontSize' || key === 'activeFontSize') && (this.terminal === 'mobile' || ['custom'].includes(component.type))) {
                 // do nothing 移动端字符大小无需按照比例缩放，当前保持不变(包括 v-text 和 过滤组件)
               } else {
-                component.style[key] = this.format(component.style[key], this.scaleWidth)
+                component.style[key] = this.formatPoint(component.style[key], this.previewCanvasScale.scalePointWidth)
               }
             }
           })
+          const maxWidth = this.canvasStyleData.width * this.scaleWidth / 100
+          if (component.style['width'] > maxWidth) {
+            component.style['width'] = maxWidth
+          }
         })
         this.componentDataShow = componentData
         this.$nextTick(() => (eventBus.$emit('resizing', '')))
       }
     },
+    openMessageLoading(cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-loading`
+      const customClass = `de-message-loading de-message-export`
+      this.$message({
+        message: h('p', null, [
+          this.$t('data_export.exporting'),
+          h(
+              Button,
+              {
+                props: {
+                  type: 'text',
+                },
+                class: 'btn-text',
+                on: {
+                  click: () => {
+                    cb()
+                  }
+                }
+              },
+              this.$t('data_export.export_center')
+            ),
+          this.$t('data_export.export_info')
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
+    openMessageSuccess(text, type, cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-${type || 'success'}`
+      const customClass = `de-message-${type || 'success'} de-message-export`
+      this.$message({
+        message: h('p', null, [
+          h('span', null, text),
+          h(
+            Button,
+            {
+              props: {
+                type: 'text',
+              },
+              class: 'btn-text',
+              on: {
+                click: () => {
+                  cb()
+                }
+              }
+            },
+            this.$t('data_export.export_center')
+          )
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
+    exportData() {
+      bus.$emit('data-export-center')
+    },
     exportExcel() {
-      this.$refs['userViewDialog-canvas-main'].exportExcel()
+      this.$refs['userViewDialog-canvas-main'].exportExcel((val) => {
+        if (val && val.success) {
+          this.openMessageLoading(this.exportData)
+        }
+
+        if (val && val.success === false) {
+          this.openMessageSuccess(`${this.showChartTableInfo.title ? this.showChartTableInfo.title : this.showChartTableInfo.name} 导出失败，前往`, 'error', this.exportData)
+        }
+        this.dialogLoading = false
+      })
+    },
+    exportSourceDetails() {
+      this.$refs['userViewDialog-canvas-main'].exportExcel((val) => {
+        if (val && val.success) {
+          this.openMessageLoading(this.exportData)
+        }
+
+        if (val && val.success === false) {
+          this.openMessageSuccess(`${this.showChartTableInfo.title ? this.showChartTableInfo.title : this.showChartTableInfo.name} 导出失败，前往`, 'error', this.exportData)
+        }
+        this.dialogLoading = false
+      })
     },
     exportViewImg() {
       this.imageDownloading = true
-      this.$refs['userViewDialog-canvas-main'].exportViewImg(()=>{
+      this.$refs['userViewDialog-canvas-main'].exportViewImg(this.pixel, () => {
         this.imageDownloading = false
       })
     },
     deselectCurComponent(e) {
       if (!this.isClickComponent) {
         this.$store.commit('setCurComponent', { component: null, index: null })
-        if (this.$refs?.['canvas-opt-bar']) {
-          this.$refs['canvas-opt-bar'].setWidgetStatus()
-        }
       }
     },
     handleMouseDown() {
@@ -726,6 +980,8 @@ export default {
       this.$store.commit('openMobileLayout')
     },
     canvasScroll() {
+      // 当滚动距离超过 100px 时显示返回顶部按钮，否则隐藏按钮
+      this.backToTopBtnShow = this.$refs[this.previewOutRefId].scrollTop > 200
       bus.$emit('onScroll')
     },
     initListen() {
@@ -755,6 +1011,9 @@ export default {
         }
       }, 1500)
     },
+    backToTop() {
+      this.$refs[this.previewOutRefId].scrollTop = 0
+    },
     downloadAsPDF() {
       this.dataLoading = true
       this.$emit('change-load-status', true)
@@ -775,6 +1034,9 @@ export default {
             if (snapshot !== '') {
               this.snapshotInfo = snapshot
               this.pdfExportShow = true
+            }
+            if (this.$refs?.['link-opt-bar']) {
+              this.$refs['link-opt-bar'].setWidgetStatus()
             }
           })
         }, 2500)

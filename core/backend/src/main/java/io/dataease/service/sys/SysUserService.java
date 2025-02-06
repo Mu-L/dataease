@@ -3,27 +3,25 @@ package io.dataease.service.sys;
 import io.dataease.auth.api.dto.CurrentUserDto;
 import io.dataease.auth.service.AuthUserService;
 import io.dataease.auth.service.ExtAuthService;
-import io.dataease.commons.exception.DEException;
-import io.dataease.controller.sys.request.*;
-import io.dataease.ext.ExtSysUserMapper;
-import io.dataease.ext.query.GridExample;
 import io.dataease.commons.constants.AuthConstants;
 import io.dataease.commons.utils.AuthUtils;
 import io.dataease.commons.utils.BeanUtils;
 import io.dataease.commons.utils.CodingUtil;
+import io.dataease.controller.sys.request.*;
 import io.dataease.controller.sys.response.SysUserGridResponse;
 import io.dataease.controller.sys.response.SysUserRole;
+import io.dataease.ext.ExtSysUserMapper;
 import io.dataease.i18n.Translator;
 import io.dataease.plugins.common.base.domain.*;
 import io.dataease.plugins.common.base.mapper.SysUserAssistMapper;
 import io.dataease.plugins.common.base.mapper.SysUserMapper;
 import io.dataease.plugins.common.base.mapper.SysUsersRolesMapper;
 import io.dataease.plugins.common.entity.XpackLdapUserEntity;
+import io.dataease.plugins.common.exception.DataEaseException;
 import io.dataease.plugins.xpack.dingtalk.dto.response.DingUserEntity;
 import io.dataease.plugins.xpack.lark.dto.entity.LarkUserInfo;
 import io.dataease.plugins.xpack.larksuite.dto.entity.UserData;
 import io.dataease.plugins.xpack.oidc.dto.SSOUserInfo;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -33,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -66,13 +63,16 @@ public class SysUserService {
     @Resource
     private AuthUserService authUserService;
 
+    public Long uidByAccount(String account) {
+        return extSysUserMapper.queryUserId(account);
+    }
 
-    public List<SysUserGridResponse> query(KeyGridRequest request) {
-        String keyWord = request.getKeyWord();
-        GridExample gridExample = request.convertExample();
-        gridExample.setExtendCondition(keyWord);
-        List<SysUserGridResponse> lists = extSysUserMapper.query(gridExample);
+
+    public List<SysUserGridResponse> query(UserGridRequest request) {
+
+        List<SysUserGridResponse> lists = extSysUserMapper.query(request);
         lists.forEach(item -> {
+            item.setPassword("");
             List<SysUserRole> roles = item.getRoles();
             List<Long> roleIds = roles.stream().filter(ObjectUtils::isNotEmpty).map(SysUserRole::getRoleId).collect(Collectors.toList());
             item.setRoleIds(roleIds);
@@ -100,6 +100,7 @@ public class SysUserService {
         if (StringUtils.isEmpty(user.getLanguage())) {
             user.setLanguage("zh_CN");
         }
+        user.setPwdResetTime(now);
         int insert = sysUserMapper.insert(user);
         SysUser dbUser = findOne(user);
         Long userId = dbUser.getUserId();
@@ -122,6 +123,7 @@ public class SysUserService {
         sysUser.setNickName(ssoUserInfo.getNickName());
         sysUser.setEmail(ssoUserInfo.getEmail());
         sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setCreateTime(now);
         sysUser.setUpdateTime(now);
         sysUser.setEnabled(1L);
@@ -148,6 +150,7 @@ public class SysUserService {
         sysUser.setNickName(userMap.get("name").toString());
         sysUser.setEmail(email);
         sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setCreateTime(now);
         sysUser.setUpdateTime(now);
 
@@ -171,6 +174,7 @@ public class SysUserService {
         sysUser.setNickName(dingUserEntity.getName());
         sysUser.setEmail(email);
         sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setCreateTime(now);
         sysUser.setUpdateTime(now);
 
@@ -193,6 +197,7 @@ public class SysUserService {
         sysUser.setNickName(larkUserInfo.getName());
         sysUser.setEmail(email);
         sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setCreateTime(now);
         sysUser.setUpdateTime(now);
 
@@ -215,6 +220,7 @@ public class SysUserService {
         sysUser.setNickName(larkUserInfo.getName());
         sysUser.setEmail(email);
         sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setCreateTime(now);
         sysUser.setUpdateTime(now);
 
@@ -235,6 +241,7 @@ public class SysUserService {
         sysUser.setUsername(name);
         sysUser.setNickName(name);
         sysUser.setEmail(email);
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
         sysUser.setCreateTime(now);
         sysUser.setUpdateTime(now);
@@ -266,6 +273,7 @@ public class SysUserService {
             sysUser.setUsername(user.getUsername());
             sysUser.setNickName(user.getNickname());
             sysUser.setDeptId(request.getDeptId());
+            sysUser.setPwdResetTime(System.currentTimeMillis());
             sysUser.setPassword(CodingUtil.md5(DEFAULT_PWD));
             sysUser.setCreateTime(now);
             sysUser.setUpdateTime(now);
@@ -389,19 +397,20 @@ public class SysUserService {
 
         if (ObjectUtils.isEmpty(user)) {
             String msg = "I18N_USER_DONOT_EXIST";
-            DEException.throwException(Translator.get(msg));
+            DataEaseException.throwException(Translator.get(msg));
         }
         if (!StringUtils.equals(CodingUtil.md5(request.getPassword()), user.getPassword())) {
             String msg = "I18N_USER_SOURCE_PWD_ERROR";
-            DEException.throwException(Translator.get(msg));
+            DataEaseException.throwException(Translator.get(msg));
         }
         SysUser sysUser = new SysUser();
         sysUser.setUserId(user.getUserId());
         if (!request.getNewPassword().matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,30}$")) {
             String msg = "I18N_USER_PWD_FORMAT_ERROR";
-            DEException.throwException(Translator.get(msg));
+            DataEaseException.throwException(Translator.get(msg));
         }
         sysUser.setPassword(CodingUtil.md5(request.getNewPassword()));
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         return sysUserMapper.updateByPrimaryKeySelective(sysUser);
     }
 
@@ -409,6 +418,7 @@ public class SysUserService {
     public int adminUpdatePwd(SysUserPwdRequest request) {
         SysUser sysUser = new SysUser();
         sysUser.setUserId(request.getUserId());
+        sysUser.setPwdResetTime(System.currentTimeMillis());
         sysUser.setPassword(CodingUtil.md5(new String(java.util.Base64.getDecoder().decode(request.getNewPassword()))));
         return sysUserMapper.updateByPrimaryKeySelective(sysUser);
     }
@@ -444,6 +454,9 @@ public class SysUserService {
     @CacheEvict(value = AuthConstants.USER_CACHE_NAME, key = "'user' + #userId")
     @Transactional
     public int delete(Long userId) {
+        if (userId.equals(1L)) {
+            DataEaseException.throwException(Translator.get("I18n_del_admin_tips"));
+        }
         extAuthService.clearUserResource(userId);
         deleteUserRoles(userId);
         sysUserAssistMapper.deleteByPrimaryKey(userId);
@@ -605,4 +618,7 @@ public class SysUserService {
         sysUserMapper.updateByPrimaryKeySelective(sysUser);
     }
 
+    public String adminEmail() {
+        return extSysUserMapper.queryAdminEmail();
+    }
 }

@@ -93,9 +93,9 @@ export default {
     }
   },
   methods: {
-    currentIsPlugin(type) {
+    currentIsPlugin(type, render) {
       const plugins = localStorage.getItem('plugin-views') && JSON.parse(localStorage.getItem('plugin-views')) || []
-      return plugins.some(plugin => plugin.value === type)
+      return plugins.some(plugin => plugin.value === type && plugin.render === render)
     },
     initTypes(plugins) {
       plugins.forEach(plugin => {
@@ -159,6 +159,10 @@ export default {
 
 .el-radio{
   margin:5px;
+}
+
+.el-radio:last-child{
+  margin-right: 5px;
 }
 
 .radio-row{

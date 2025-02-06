@@ -126,8 +126,8 @@
         @current-change="handleCurrentChange"
       >
         <el-table-column
-          prop="username"
           key="username"
+          prop="username"
           label="ID"
         />
         <el-table-column
@@ -139,8 +139,8 @@
         />
         <!-- <el-table-column prop="gender" :label="$t('commons.gender')" width="60" /> -->
         <el-table-column
-          prop="from"
           key="from"
+          prop="from"
           :label="$t('user.source')"
           width="80"
         >
@@ -261,7 +261,10 @@
               popper-class="reset-pwd"
               trigger="click"
             >
-              <svg-icon class="reset-pwd-icon" icon-class="icon_info_filled" />
+              <svg-icon
+                class="reset-pwd-icon"
+                icon-class="icon_info_filled"
+              />
               <div class="tips">{{ $t('user.recover_pwd') }}</div>
               <div class="editer-form-title">
                 <span
@@ -333,6 +336,7 @@ import { columnOptions } from './options'
 import DeLayoutContent from '@/components/business/DeLayoutContent'
 import { addOrder, formatOrders } from '@/utils/index'
 import { pluginLoaded, defaultPwd } from '@/api/user'
+import { buildParam } from '@/utils/GridConditionUtil'
 import bus from '@/utils/bus'
 import { Base64 } from 'js-base64'
 /* import { ldapStatus, pluginLoaded } from '@/api/user' */
@@ -568,17 +572,9 @@ export default {
       })
     },
     search() {
-      const param = {
-        orders: formatOrders(this.orderConditions),
-        conditions: [...this.cacheCondition]
-      }
-      if (this.nickName) {
-        param.conditions.push({
-          field: `concat(nick_name, ',' , email)`,
-          operator: 'like',
-          value: this.nickName
-        })
-      }
+      const param = buildParam(this.cacheCondition, this.nickName)
+      param.orders = formatOrders(this.orderConditions)
+
       const { currentPage, pageSize } = this.paginationConfig
       userLists(currentPage, pageSize, param).then((response) => {
         this.data = response.data.listObject
@@ -692,7 +688,7 @@ export default {
   flex-wrap: wrap;
 
   .tips {
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     font-size: 14px;
     font-weight: 500;
     line-height: 22px;
@@ -710,7 +706,7 @@ export default {
 
     .pwd,
     .btn-text {
-      font-family: PingFang SC;
+      font-family: AlibabaPuHuiTi;
       font-size: 14px;
       font-weight: 400;
       line-height: 22px;
@@ -733,7 +729,7 @@ export default {
     .btn {
       border-radius: 4px;
       padding: 4px 12px 4px 12px;
-      font-family: PingFang SC;
+      font-family: AlibabaPuHuiTi;
       font-size: 14px;
       font-weight: 400;
       line-height: 20px;
@@ -756,7 +752,7 @@ export default {
 
   .title,
   .el-checkbox {
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     font-size: 14px;
     font-weight: 400;
     padding: 5px 0;

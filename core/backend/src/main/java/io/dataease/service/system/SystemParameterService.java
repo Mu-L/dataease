@@ -1,17 +1,17 @@
 package io.dataease.service.system;
 
 import io.dataease.commons.constants.ParamConstants;
-import io.dataease.commons.exception.DEException;
 import io.dataease.commons.utils.BeanUtils;
 import io.dataease.commons.utils.EncryptUtils;
 import io.dataease.controller.sys.response.BasicInfo;
 import io.dataease.dto.SystemParameterDTO;
-import io.dataease.exception.DataEaseException;
+import io.dataease.ext.ExtSystemParameterMapper;
 import io.dataease.plugins.common.base.domain.FileMetadata;
 import io.dataease.plugins.common.base.domain.SystemParameter;
 import io.dataease.plugins.common.base.domain.SystemParameterExample;
 import io.dataease.plugins.common.base.mapper.SystemParameterMapper;
-import io.dataease.plugins.config.SpringContextUtil;
+import io.dataease.plugins.common.exception.DataEaseException;
+import io.dataease.plugins.common.util.SpringContextUtil;
 import io.dataease.plugins.xpack.cas.dto.CasSaveResult;
 import io.dataease.plugins.xpack.cas.service.CasXpackService;
 import io.dataease.plugins.xpack.display.service.DisplayXpackService;
@@ -26,6 +26,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import springfox.documentation.annotations.Cacheable;
 
 import javax.annotation.Resource;
 import javax.imageio.ImageIO;
@@ -34,8 +35,8 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.dataease.ext.*;
-import springfox.documentation.annotations.Cacheable;
+import static io.dataease.commons.constants.ParamConstants.BASIC.LOGIN_LIMIT_OPEN_MODIFY_PWD;
+import static io.dataease.commons.constants.ParamConstants.BASIC.LOGIN_LIMIT_PWD_CYCLE;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
@@ -57,18 +58,21 @@ public class SystemParameterService {
         return extSystemParameterMapper.email();
     }
 
+
     public BasicInfo basicInfo() {
         List<SystemParameter> paramList = this.getParamList("basic");
         List<SystemParameter> homePageList = this.getParamList("ui.openHomePage");
         List<SystemParameter> marketPageList = this.getParamList("ui.openMarketPage");
         List<SystemParameter> loginLimitList = this.getParamList("loginlimit");
+        List<SystemParameter> autoMobileList = this.getParamList("ui.autoMobile");
         paramList.addAll(homePageList);
         paramList.addAll(marketPageList);
         paramList.addAll(loginLimitList);
+        paramList.addAll(autoMobileList);
         BasicInfo result = new BasicInfo();
         result.setOpenHomePage("true");
         Map<String, LoginLimitXpackService> beansOfType = SpringContextUtil.getApplicationContext().getBeansOfType((LoginLimitXpackService.class));
-        Boolean loginLimitPluginLoaded = beansOfType.keySet().size() > 0;
+        boolean loginLimitPluginLoaded = beansOfType.keySet().size() > 0;
         if (!CollectionUtils.isEmpty(paramList)) {
             for (SystemParameter param : paramList) {
                 if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.FRONT_TIME_OUT.getValue())) {
@@ -79,6 +83,12 @@ public class SystemParameterService {
                 }
                 if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.LOG_TIME_OUT.getValue())) {
                     result.setLogTimeOut(param.getParamValue());
+                }
+                if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.DS_SYNC_LOG_TIME_OUT.getValue())) {
+                    result.setDsSyncLogTimeOut(param.getParamValue());
+                }
+                if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.EXPORT_FILE_TIME_OUT.getValue())) {
+                    result.setExportFileTimeOut(param.getParamValue());
                 }
                 if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.DEFAULT_LOGIN_TYPE.getValue())) {
                     String paramValue = param.getParamValue();
@@ -91,6 +101,10 @@ public class SystemParameterService {
                 if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.OPEN_MARKET_PAGE.getValue())) {
                     boolean open = StringUtils.equals("true", param.getParamValue());
                     result.setOpenMarketPage(open ? "true" : "false");
+                }
+                if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.AUTO_MOBILE.getValue())) {
+                    boolean close = StringUtils.equals("false", param.getParamValue());
+                    result.setAutoMobile(close ? "false" : "true");
                 }
                 if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.TEMPLATE_MARKET_ULR.getValue())) {
                     result.setTemplateMarketUlr(param.getParamValue());
@@ -122,6 +136,20 @@ public class SystemParameterService {
                     if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.LOGIN_LIMIT_OPEN.getValue())) {
                         boolean open = StringUtils.equals("true", param.getParamValue());
                         result.setOpen(open ? "true" : "false");
+                    }
+                    if (StringUtils.equals(param.getParamKey(), LOGIN_LIMIT_OPEN_MODIFY_PWD.getValue())) {
+                        boolean open = StringUtils.equals("true", param.getParamValue());
+                        result.setOpenModifyPwd(open ? "true" : "false");
+                    }
+                    if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.LOGIN_LIMIT_PWD_CYCLE.getValue())) {
+                        String paramValue = param.getParamValue();
+                        if (StringUtils.isNotBlank(paramValue)) {
+                            result.setPwdCycle(paramValue);
+                        }
+                    }
+                    if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.LOCKED_EMAIL.getValue())) {
+                        boolean open = StringUtils.equals("true", param.getParamValue());
+                        result.setLockedEmail(open ? "true" : "false");
                     }
                     if (StringUtils.equals(param.getParamKey(), ParamConstants.BASIC.SCAN_CREATE_USER.getValue())) {
                         boolean open = StringUtils.equals("true", param.getParamValue());
@@ -160,8 +188,7 @@ public class SystemParameterService {
         CasSaveResult casSaveResult = afterSwitchDefaultLogin(parameters);
         BasicInfo basicInfo = basicInfo();
         String oldMultiLogin = this.getValue("loginlimit.multiLogin");
-        for (int i = 0; i < parameters.size(); i++) {
-            SystemParameter parameter = parameters.get(i);
+        for (SystemParameter parameter : parameters) {
             SystemParameterExample example = new SystemParameterExample();
 
             example.createCriteria().andParamKeyEqualTo(parameter.getParamKey());
@@ -184,9 +211,9 @@ public class SystemParameterService {
     @Transactional
     public void resetCas() {
         Map<String, CasXpackService> beansOfType = SpringContextUtil.getApplicationContext().getBeansOfType((CasXpackService.class));
-        if (beansOfType.keySet().size() == 0) DEException.throwException("当前未启用CAS");
+        if (beansOfType.keySet().size() == 0) DataEaseException.throwException("当前未启用CAS");
         CasXpackService casXpackService = SpringContextUtil.getBean(CasXpackService.class);
-        if (ObjectUtils.isEmpty(casXpackService)) DEException.throwException("当前未启用CAS");
+        if (ObjectUtils.isEmpty(casXpackService)) DataEaseException.throwException("当前未启用CAS");
 
         String loginTypePk = "basic.loginType";
         SystemParameter loginTypeParameter = systemParameterMapper.selectByPrimaryKey(loginTypePk);
@@ -274,6 +301,50 @@ public class SystemParameterService {
         return param.getParamValue();
     }
 
+    public Integer pwdValidityPeriod(Long userId) {
+
+        Map<String, LoginLimitXpackService> beansOfType = SpringContextUtil.getApplicationContext().getBeansOfType((LoginLimitXpackService.class));
+        boolean loginLimitPluginLoaded = beansOfType.keySet().size() > 0;
+        if (!loginLimitPluginLoaded) return -1;
+        String value = getValue(LOGIN_LIMIT_OPEN_MODIFY_PWD.getValue());
+        if (StringUtils.isNotBlank(value) && StringUtils.equals("true", value)) {
+            long pwdTime = extSystemParameterMapper.queryPwdResetTime(userId);
+            if (ObjectUtils.isEmpty(pwdTime)) {
+                return -1;
+            }
+            long dayTime = 24 * 3600L * 1000L;
+            String pwdCycle = getValue(LOGIN_LIMIT_PWD_CYCLE.getValue());
+            Long expireCycle = null;
+            if (StringUtils.isBlank(pwdCycle) || StringUtils.equals("1", pwdCycle)) {
+                expireCycle = 90L * dayTime;
+            } else if (StringUtils.equals("2", pwdCycle)) {
+                expireCycle = 180L * dayTime;
+            } else {
+                expireCycle = 365L * dayTime;
+            }
+            long now = System.currentTimeMillis();
+            long validityPeriod = pwdTime + expireCycle - now;
+            if (validityPeriod < 0L) return 0;
+            long validityDays = validityPeriod / dayTime;
+            if (validityPeriod % dayTime != 0) {
+                validityDays++;
+            }
+            return (int) validityDays;
+        }
+        return -1;
+    }
+
+
+    public void disabledLockedEmail() {
+        SystemParameter param = systemParameterMapper.selectByPrimaryKey(ParamConstants.BASIC.LOCKED_EMAIL.getValue());
+        if (ObjectUtils.isNotEmpty(param)) {
+            SystemParameterExample example = new SystemParameterExample();
+            example.createCriteria().andParamKeyEqualTo(ParamConstants.BASIC.LOCKED_EMAIL.getValue());
+            param.setParamValue("false");
+            systemParameterMapper.updateByExample(param, example);
+        }
+    }
+
     public Integer defaultLoginType() {
         String value = getValue(LOGIN_TYPE_KEY);
         return StringUtils.isNotBlank(value) ? Integer.parseInt(value) : 0;
@@ -323,7 +394,7 @@ public class SystemParameterService {
                             // It's an image (only BMP, GIF, JPG and PNG are recognized).
                             ImageIO.read(input).toString();
                         } catch (Exception e) {
-                            DEException.throwException("Uploaded images do not meet the image format requirements");
+                            DataEaseException.throwException("Uploaded images do not meet the image format requirements");
                             return;
                         }
                     }
@@ -389,6 +460,29 @@ public class SystemParameterService {
 
     @CacheEvict("multiLogin")
     public void clearMultiLoginCache() {
+    }
+
+    public String onlineMapKey() {
+        return getValue("map.key");
+    }
+
+    public void saveMapKey(String key) {
+        String paramKey = "map.key";
+        SystemParameterExample example = new SystemParameterExample();
+        example.createCriteria().andParamKeyEqualTo(paramKey);
+        List<SystemParameter> systemParameters = systemParameterMapper.selectByExample(example);
+        if (CollectionUtils.isNotEmpty(systemParameters)) {
+            SystemParameter systemParameter = systemParameters.get(0);
+            systemParameter.setParamValue(key);
+            systemParameterMapper.updateByExample(systemParameter, example);
+            return;
+        }
+        SystemParameter record = new SystemParameter();
+        record.setParamKey(paramKey);
+        record.setParamValue(key);
+        record.setType("text");
+        record.setSort(1);
+        systemParameterMapper.insert(record);
     }
 
 }

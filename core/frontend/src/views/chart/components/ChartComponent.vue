@@ -57,6 +57,8 @@ import { reverseColor } from '../chart/common/common'
 import MapController from './map/MapController.vue'
 import { mapState } from 'vuex'
 import bus from '@/utils/bus'
+import { deepCopy } from '@/components/canvas/utils/utils'
+import { getRange } from '@/utils/timeUitils'
 
 export default {
   name: 'ChartComponent',
@@ -65,6 +67,11 @@ export default {
     MapController
   },
   props: {
+    inScreen: {
+      type: Boolean,
+      required: false,
+      default: true
+    },
     active: {
       type: Boolean,
       required: false,
@@ -139,7 +146,9 @@ export default {
         'line',
         'line-stack',
         'scatter'
-      ]
+      ],
+      resizeTimer: null,
+      renderTimer: null
     }
   },
 
@@ -184,13 +193,19 @@ export default {
   },
   mounted() {
     bus.$on('change-series-id', this.changeSeriesId)
-    document.getElementById(this.chartId).addEventListener('mouseover', this.bodyMouseover)
-    document.getElementById(this.chartId).addEventListener('mouseout', this.bodyMouseout)
+    const dom = document.getElementById(this.chartId)
+    if (dom) {
+      dom.addEventListener('mouseover', this.bodyMouseover)
+      dom.addEventListener('mouseout', this.bodyMouseout)
+    }
     this.preDraw()
   },
   beforeDestroy() {
-    document.getElementById(this.chartId).removeEventListener('mouseover', this.bodyMouseover)
-    document.getElementById(this.chartId).removeEventListener('mouseout', this.bodyMouseout)
+    const dom = document.getElementById(this.chartId)
+    if (dom) {
+      dom.removeEventListener('mouseover', this.bodyMouseover)
+      dom.removeEventListener('mouseout', this.bodyMouseout)
+    }
     bus.$off('change-series-id', this.changeSeriesId)
     window.removeEventListener('resize', this.myChart.resize)
     this.myChart.dispose()
@@ -249,6 +264,9 @@ export default {
       }
       this.currentSeriesId = seriesId
     },
+    clearLinkage() {
+      this.reDrawView()
+    },
     reDrawView() {
       if (this.linkageActiveParam) {
         this.myChart.dispatchAction({
@@ -292,6 +310,7 @@ export default {
           this.myChart = this.$echarts.init(document.getElementById(this.chartId))
         }
         this.drawEcharts()
+        this.myChart.off('click')
         this.myChart.on('click', function(param) {
           that.pointParam = param
           if (that.linkageActiveParam) {
@@ -408,7 +427,7 @@ export default {
           chart_option.legend['pageIconInactiveColor'] = '#8c8c8c'
         }
       }
-      if (chart_option.tooltip) {
+      if (chart_option.tooltip && this.inScreen) {
         chart_option.tooltip.appendToBody = true
       }
       this.myEcharts(chart_option)
@@ -431,11 +450,12 @@ export default {
       const base_json = JSON.parse(JSON.stringify(BASE_MAP))
       base_json.geo.map = mapId
       let themeStyle = null
+      let panelColor = '#FFFFFF'
       if (this.themeStyle) {
         themeStyle = JSON.parse(JSON.stringify(this.themeStyle))
 
         if (themeStyle && themeStyle.backgroundColorSelect) {
-          const panelColor = themeStyle.color
+          panelColor = themeStyle.color
           if (panelColor !== '#FFFFFF') {
             const reverseValue = reverseColor(panelColor)
             this.buttonTextColor = reverseValue
@@ -443,7 +463,7 @@ export default {
             this.buttonTextColor = null
           }
         } else if (this.canvasStyleData.openCommonStyle && this.canvasStyleData.panel.backgroundType === 'color') {
-          const panelColor = this.canvasStyleData.panel.color
+          panelColor = this.canvasStyleData.panel.color
           if (panelColor !== '#FFFFFF') {
             const reverseValue = reverseColor(panelColor)
             this.buttonTextColor = reverseValue
@@ -455,6 +475,32 @@ export default {
         }
       }
       const chart_option = baseMapOption(base_json, geoJson, chart, this.buttonTextColor, curAreaCode, this.currentSeriesId)
+      if (chart_option.geo.itemStyle.normal) {
+        chart_option.geo.itemStyle.normal.areaColor = `${panelColor}33`
+      } else {
+        chart_option.geo.itemStyle.normal = {
+          areaColor: `${panelColor}33`
+        }
+      }
+      if (chart_option.series?.length) {
+        const dataNames = []
+        chart_option.series.filter(se => se.type === 'map').forEach(se => {
+          se.data.forEach(d => {
+            if (d?.name) {
+              dataNames.push(d.name)
+            }
+          })
+        })
+        for (const key in chart_option.geo.nameMap) {
+          if (Object.hasOwnProperty.call(chart_option.geo.nameMap, key)) {
+            const element = chart_option.geo.nameMap[key]
+            if (element && !dataNames.includes(element)) {
+              chart_option.geo.nameMap[key] = key
+            }
+          }
+        }
+      }
+
       this.myEcharts(chart_option)
       const opt = this.myChart.getOption()
       if (opt && opt.series) {
@@ -467,7 +513,11 @@ export default {
       // 指定图表的配置项和数据
       const chart = this.myChart
       this.setBackGroundBorder()
-      setTimeout(chart.setOption(option, true), 500)
+      this.renderTimer && clearTimeout(this.renderTimer)
+      this.renderTimer = setTimeout(() => {
+        chart.clear()
+        chart.setOption(option, true)
+      }, 500)
       window.removeEventListener('resize', chart.resize)
     },
     setBackGroundBorder() {
@@ -480,9 +530,16 @@ export default {
     },
     chartResize() {
       // 指定图表的配置项和数据
-      const chart = this.myChart
-      chart.resize()
-      this.reDrawMap()
+      this.resizeTimer && clearTimeout(this.resizeTimer)
+      this.resizeTimer = setTimeout(() => {
+        const { offsetWidth, offsetHeight } = document.getElementById(this.chartId)
+        const chartWidth = this.myChart.getWidth()
+        const chartHeight = this.myChart.getHeight()
+        if (offsetWidth !== chartWidth || offsetHeight !== chartHeight) {
+          this.myChart.resize()
+          this.reDrawMap()
+        }
+      }, 100)
     },
     reDrawMap() {
       const chart = this.chart
@@ -491,14 +548,26 @@ export default {
       }
     },
     trackClick(trackAction) {
+      const idTypeMap = this.chart.data.fields.reduce((pre, next) => {
+        pre[next['id']] = next['deType']
+        return pre
+      }, {})
+
+      const idDateStyleMap = this.chart.data.fields.reduce((pre, next) => {
+        pre[next['id']] = next['dateStyle']
+        return pre
+      }, {})
+
+      const dimensionListAdaptor = deepCopy(this.pointParam.data.dimensionList)
+      dimensionListAdaptor.forEach(dimension => {
+        // deType === 1 表示是时间类型
+        if (idTypeMap[dimension.id] === 1) {
+          dimension.value = getRange(dimension.value, idDateStyleMap[dimension.id])
+        }
+      })
+
       const param = this.pointParam
       if (!param || !param.data || !param.data.dimensionList) {
-        if (this.chart.type === 'map') {
-          const zoom = this.myChart.getOption().geo[0].zoom
-          if (zoom <= 1) {
-            this.$warning(this.$t('panel.no_drill_field'))
-          }
-        }
         return
       }
       const quotaList = this.pointParam.data.quotaList
@@ -507,14 +576,14 @@ export default {
         option: 'linkage',
         name: this.pointParam.data.name,
         viewId: this.chart.id,
-        dimensionList: this.pointParam.data.dimensionList,
+        dimensionList: dimensionListAdaptor,
         quotaList: quotaList
       }
       const jumpParam = {
         option: 'jump',
         name: this.pointParam.data.name,
         viewId: this.chart.id,
-        dimensionList: this.pointParam.data.dimensionList,
+        dimensionList: dimensionListAdaptor,
         quotaList: quotaList
       }
       jumpParam.quotaList[0]['value'] = this.pointParam.data.value

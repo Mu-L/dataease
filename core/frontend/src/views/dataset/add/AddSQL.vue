@@ -6,25 +6,26 @@
   >
     <div class="sql-editer">
       <el-row>
-        <el-col :span="12">
+        <el-col :span="16">
           <el-select
             v-model="dataSource"
             filterable
             style="width: 215px"
             :placeholder="$t('dataset.pls_slc_data_source')"
             size="small"
-            @change="changeDatasource()"
+            @change="changeDatasource(true)"
           >
             <el-option
               v-for="item in options"
               :key="item.id"
               :label="item.name"
               :value="item.id"
+              :disabled="item.calculationMode === 'DIRECT' && !!param.tableId"
             />
           </el-select>
           <el-select
-            :disabled="param.tableId"
             v-model="mode"
+            :disabled="param.tableId"
             style="width: 120px; margin: 0 12px"
             filterable
             :placeholder="$t('dataset.connect_mode')"
@@ -35,16 +36,16 @@
               value="0"
             />
             <el-option
+              v-if="engineMode !== 'simple'"
               :label="$t('dataset.sync_data')"
               value="1"
-              v-if="engineMode !== 'simple'"
               :disabled="disabledSync"
             />
           </el-select>
           <el-select
-            :disabled="param.tableId"
             v-if="mode === '1'"
             v-model="syncType"
+            :disabled="param.tableId"
             style="width: 120px"
             filterable
             :placeholder="$t('dataset.connect_mode')"
@@ -60,10 +61,34 @@
               value="sync_latter"
             />
           </el-select>
+          <el-checkbox
+            v-if="mode === '1' && engineMode !== 'simple'"
+            v-model="param.setKey"
+            style="margin-left: 12px"
+          >{{ $t('dataset.set_key') }}</el-checkbox>
+
+          <el-select
+            v-if="mode === '1' && engineMode !== 'simple'"
+            v-model="param.keys"
+            size="small"
+            style="margin-left: 12px;width: 315px"
+            multiple
+            filterable
+            :disabled="!param.setKey"
+            :placeholder="$t('dataset.selecet_key')"
+          >
+            <el-option
+              v-for="field in fields"
+              :key="field.fieldName"
+              :label="field.fieldName"
+              :value="field.fieldName"
+            />
+          </el-select>
+
         </el-col>
         <el-col
           style="text-align: right"
-          :span="12"
+          :span="8"
         >
           <el-button
             type="text"
@@ -71,7 +96,7 @@
             class="de-text-btn"
             @click="dataReference = true"
           >
-            <svg-icon icon-class="data-reference"/>
+            <svg-icon icon-class="data-reference" />
             {{ $t('deDataset.data_reference') }}
           </el-button>
           <el-button
@@ -81,17 +106,17 @@
             class="de-text-btn"
             @click="variableMgm"
           >
-            <svg-icon icon-class="reference-setting"/>
+            <svg-icon icon-class="reference-setting" />
             {{ $t('sql_variable.variable_mgm') }}
           </el-button>
-          <el-divider direction="vertical"/>
+          <el-divider direction="vertical" />
           <el-button
             class="de-text-btn"
             type="text"
             size="small"
             @click="getSQLPreview"
           >
-            <svg-icon icon-class="reference-play"/>
+            <svg-icon icon-class="reference-play" />
             {{ $t('deDataset.run_a_query') }}
           </el-button>
         </el-col>
@@ -112,7 +137,7 @@
                 dataTable = ''
                 ;keywords = ''
               "
-            ><i class="el-icon-arrow-left"/> {{ $t('chart.back') }}</span>
+            ><i class="el-icon-arrow-left" /> {{ $t('chart.back') }}</span>
             <span v-else>{{ $t('deDataset.data_reference') }}</span>
             <i
               style="cursor: pointer"
@@ -132,7 +157,7 @@
               :title="(showTable && dataTable) || selectedDatasource.name"
               class="grey-name"
             >
-              <svg-icon icon-class="db-de"/>
+              <svg-icon icon-class="db-de" />
               {{ (showTable && dataTable) || selectedDatasource.name }}
             </span>
             <span class="grey">
@@ -147,12 +172,15 @@
           v-if="!dataSource"
           class="no-select-datasource"
         >{{
-            $t('deDataset.to_start_using')
-          }}</span>
+          $t('deDataset.to_start_using')
+        }}</span>
         <template v-else>
-          <el-input :placeholder="$t('fu.search_bar.please_input')" style="padding: 5px" size="small"
-                    v-model="keywords"
-          ></el-input>
+          <el-input
+            v-model="keywords"
+            :placeholder="$t('fu.search_bar.please_input')"
+            style="padding: 5px"
+            size="small"
+          />
           <div
             v-if="dataSource && !dataTable"
             v-loading="tableLoading"
@@ -164,10 +192,10 @@
               class="table-or-field"
               @click="typeSwitch(ele)"
             >
-            <span
-              :title="`${ele.name}${ele.remark ? ':' + ele.remark : ''}`"
-              class="name"
-            >{{ ele.name }}</span>
+              <span
+                :title="`${ele.name}${ele.remark ? ':' + ele.remark : ''}`"
+                class="name"
+              >{{ ele.name }}</span>
               <i
                 v-clipboard:copy="ele.name"
                 v-clipboard:success="onCopy"
@@ -187,10 +215,10 @@
               :key="ele.fieldName"
               class="table-or-field field"
             >
-            <span
-              :title="`${ele.fieldName}${ele.remark ? ':' + ele.remark : ''}`"
-              class="name"
-            >{{ ele.fieldName }}</span>
+              <span
+                :title="`${ele.fieldName}${ele.remark ? ':' + ele.remark : ''}`"
+                class="name"
+              >{{ ele.fieldName }}</span>
               <i
                 v-clipboard:copy="ele.fieldName"
                 v-clipboard:success="onCopy"
@@ -232,10 +260,10 @@
               v-if="tabActive === 'result'"
               class="result-num"
             >{{
-                `(${$t('dataset.preview_show')} 1000 ${$t(
-                  'dataset.preview_item'
-                )})`
-              }}</span>
+              `(${$t('dataset.preview_show')} 1000 ${$t(
+                'dataset.preview_item'
+              )})`
+            }}</span>
 
             <span
               class="drag"
@@ -274,25 +302,32 @@
               :description="$t('deDataset.run_failed')"
             >{{ errMsgCont }}
             </el-empty>
-            <div style="float: left" v-else-if="fields.length">
-              <el-table
-              :data="plxTableData"
-              size="mini"
-              border
+            <div
+              v-else-if="fields.length"
+              style="float: left; min-width: 100%;"
             >
-              <el-table-column
-                v-for="field in fields"
-                :key="field.fieldName"
-                min-width="200px"
-                :prop="field.fieldName"
-                :label="field.remarks"
-                resizable
-              />
-            </el-table>
+              <el-table
+                :data="plxTableData"
+                size="mini"
+                border
+              >
+                <el-table-column
+                  v-for="field in fields"
+                  :key="field.fieldName"
+                  min-width="200px"
+                  :prop="field.fieldName"
+                  :label="field.remarks"
+                  resizable
+                >
+                  <template slot-scope="scope">
+                    <span>{{ at(scope.row, field.fieldName)[0] }}</span>
+                  </template>
+                </el-table-column>
+              </el-table>
             </div>
             <el-table
-              :data="plxTableData"
               v-else
+              :data="plxTableData"
               size="mini"
               border
             >
@@ -303,7 +338,11 @@
                 :prop="field.fieldName"
                 :label="field.remarks"
                 resizable
-              />
+              >
+                <template slot-scope="scope">
+                  <span>{{ at(scope.row, field.fieldName)[0] }}</span>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
           <div
@@ -384,7 +423,7 @@
             direction="rtl"
           >
             <div class="content">
-              <i class="el-icon-info"/>
+              <i class="el-icon-info" />
               {{ $t('dataset.sql_variable_limit_1') }}<br>
               {{ $t('dataset.sql_variable_limit_2') }}<br>
             </div>
@@ -471,7 +510,8 @@
                     v-model="scope.row.defaultValue"
                     size="small"
                     type="text"
-                    :placeholder="$t('fu.search_bar.please_input')">
+                    :placeholder="$t('fu.search_bar.please_input')"
+                  >
                     <el-select
                       slot="prepend"
                       v-model="scope.row.defaultValueScope"
@@ -510,7 +550,10 @@
                       />
                     </el-select>
                   </el-input>
-                  <div v-if="['DATETIME-YEAR', 'DATETIME-YEAR-MONTH', 'DATETIME-YEAR-MONTH-DAY', 'DATETIME'].includes(scope.row.type[0])" class="el-input-group el-input-group--prepend de-group__prepend">
+                  <div
+                    v-if="['DATETIME-YEAR', 'DATETIME-YEAR-MONTH', 'DATETIME-YEAR-MONTH-DAY', 'DATETIME'].includes(scope.row.type[0])"
+                    class="el-input-group el-input-group--prepend de-group__prepend"
+                  >
                     <div class="el-input-group__prepend">
                       <el-select
                         v-model="scope.row.defaultValueScope"
@@ -525,45 +568,45 @@
                         />
                       </el-select>
                     </div>
-                  <el-date-picker
-                    v-if="scope.row.type[0] === 'DATETIME-YEAR'"
-                    v-model="scope.row.defaultValue"
-                    type="year"
-                    size="small"
-                    value-format="yyyy"
-                    :placeholder="$t('dataset.select_year')"
-                  />
+                    <el-date-picker
+                      v-if="scope.row.type[0] === 'DATETIME-YEAR'"
+                      v-model="scope.row.defaultValue"
+                      type="year"
+                      size="small"
+                      value-format="yyyy"
+                      :placeholder="$t('dataset.select_year')"
+                    />
 
-                  <el-date-picker
-                    v-if="scope.row.type[0] === 'DATETIME-YEAR-MONTH'"
-                    v-model="scope.row.defaultValue"
-                    type="month"
-                    size="small"
-                    :format="scope.row.type[1]"
-                    :value-format="scope.row.type[1]"
-                    :placeholder="$t('dataset.select_month')"
-                  />
+                    <el-date-picker
+                      v-if="scope.row.type[0] === 'DATETIME-YEAR-MONTH'"
+                      v-model="scope.row.defaultValue"
+                      type="month"
+                      size="small"
+                      :format="scope.row.type[1]"
+                      :value-format="scope.row.type[1]"
+                      :placeholder="$t('dataset.select_month')"
+                    />
 
-                  <el-date-picker
-                    v-if="scope.row.type[0] === 'DATETIME-YEAR-MONTH-DAY'"
-                    v-model="scope.row.defaultValue"
-                    type="date"
-                    size="small"
-                    :format="scope.row.type[1]"
-                    :value-format="scope.row.type[1]"
-                    :placeholder="$t('dataset.select_date')"
-                  />
+                    <el-date-picker
+                      v-if="scope.row.type[0] === 'DATETIME-YEAR-MONTH-DAY'"
+                      v-model="scope.row.defaultValue"
+                      type="date"
+                      size="small"
+                      :format="scope.row.type[1]"
+                      :value-format="scope.row.type[1]"
+                      :placeholder="$t('dataset.select_date')"
+                    />
 
-                  <el-date-picker
-                    v-if="scope.row.type[0] === 'DATETIME'"
-                    v-model="scope.row.defaultValue"
-                    type="datetime"
-                    size="small"
-                    :format="scope.row.type[1]"
-                    :value-format="scope.row.type[1]"
-                    :placeholder="$t('dataset.select_time')"
-                  />
-                </div>
+                    <el-date-picker
+                      v-if="scope.row.type[0] === 'DATETIME'"
+                      v-model="scope.row.defaultValue"
+                      type="datetime"
+                      size="small"
+                      :format="scope.row.type[1]"
+                      :value-format="scope.row.type[1]"
+                      :placeholder="$t('dataset.select_time')"
+                    />
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -572,15 +615,15 @@
                 secondary
                 @click="closeVariableMgm"
               >{{
-                  $t('dataset.cancel')
-                }}
+                $t('dataset.cancel')
+              }}
               </deBtn>
               <deBtn
                 type="primary"
                 @click="saveVariable()"
               >{{
-                  $t('dataset.confirm')
-                }}
+                $t('dataset.confirm')
+              }}
               </deBtn>
             </div>
           </el-drawer>
@@ -623,6 +666,7 @@ import { pySort } from './util'
 import _ from 'lodash'
 import GridTable from '@/components/gridTable/index.vue'
 import { updateCacheTree } from '@/components/canvas/utils/utils'
+import { at } from 'lodash'
 
 export default {
   name: 'AddSQL',
@@ -742,7 +786,8 @@ export default {
             }
           ]
         }
-      ]
+      ],
+      at
     }
   },
   computed: {
@@ -858,20 +903,22 @@ export default {
         this.kettleRunning = res.data
       })
     },
-    changeDatasource() {
+    changeDatasource(val) {
       this.keywords = ''
-      for (let i = 0; i < this.options.length; i++) {
-        if (this.options[i].id === this.dataSource) {
-          this.selectedDatasource = this.options[i]
-          this.mode = '0'
-          if (
-            this.engineMode === 'simple' ||
-            !this.kettleRunning ||
-            this.selectedDatasource.calculationMode === 'DIRECT'
-          ) {
-            this.disabledSync = true
-          } else {
-            this.disabledSync = false
+      if (!(this.param.tableId && val)) {
+        for (let i = 0; i < this.options.length; i++) {
+          if (this.options[i].id === this.dataSource) {
+            this.selectedDatasource = this.options[i]
+            this.mode = '0'
+            if (
+              this.engineMode === 'simple' ||
+              !this.kettleRunning ||
+              this.selectedDatasource.calculationMode === 'DIRECT'
+            ) {
+              this.disabledSync = true
+            } else {
+              this.disabledSync = false
+            }
           }
         }
       }
@@ -905,8 +952,11 @@ export default {
 
     initTableInfo() {
       const tableId = this.param.tableId || this.$route.query.id
+      if (!tableId) {
+        this.$emit('setSaveDisabled', false)
+        return
+      }
       if (tableId) {
-        this.$emit('datasourceLoading', true)
         getTable(tableId).then((response) => {
           const table = response.data
           this.dataSource = table.dataSourceId
@@ -920,9 +970,13 @@ export default {
               table.info.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
             ).sql
           }
+          if (JSON.parse(table.info).hasOwnProperty('setKey')) {
+            this.$set(this.param, 'setKey', JSON.parse(table.info).setKey)
+            this.param.keys = JSON.parse(table.info).keys
+          }
           this.variables = JSON.parse(table.sqlVariableDetails)
         }).finally(() => {
-          this.$emit('datasourceLoading', false)
+          this.$emit('setSaveDisabled', false)
         })
       }
     },
@@ -1025,7 +1079,9 @@ export default {
         sqlVariableDetails: JSON.stringify(this.variables),
         info: JSON.stringify({
           sql: Base64.encode(this.sql.trim()),
-          isBase64Encryption: true
+          isBase64Encryption: true,
+          setKey: this.param.setKey,
+          keys: this.param.keys
         })
       }
       post('/dataset/table/update', table)
@@ -1080,7 +1136,7 @@ export default {
             for (let i = 0; i < this.variables.length; i++) {
               if (this.variables[i].variableName === name) {
                 obj = this.variables[i]
-                if(!obj.hasOwnProperty("defaultValueScope")){
+                if (!Object.prototype.hasOwnProperty.call(obj, 'defaultValueScope')) {
                   obj.defaultValueScope = 'EDIT'
                 }
               }
@@ -1170,7 +1226,7 @@ export default {
     background: #e1eaff;
     position: relative;
     padding: 9px 0 9px 40px;
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     font-size: 14px;
     font-weight: 400;
 
@@ -1210,7 +1266,7 @@ export default {
       border-left: 1px solid var(--deCardStrokeColor, #dee0e3);
 
       .no-select-datasource {
-        font-family: PingFang SC;
+        font-family: AlibabaPuHuiTi;
         font-size: 14px;
         color: var(--deTextPrimary, #1f2329);
         font-weight: 400;
@@ -1220,7 +1276,7 @@ export default {
       }
 
       .table-database-name {
-        font-family: PingFang SC;
+        font-family: AlibabaPuHuiTi;
         font-size: 16px;
         font-weight: 500;
         color: var(--deTextPrimary, #1f2329);
@@ -1323,7 +1379,7 @@ export default {
   }
 
   .sql-result {
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     font-size: 14px;
     overflow-y: auto;
     box-sizing: border-box;
@@ -1373,7 +1429,7 @@ export default {
 
       .el-empty__bottom,
       .el-empty__description p {
-        font-family: PingFang SC;
+        font-family: AlibabaPuHuiTi;
         font-size: 14px;
         font-weight: 400;
         margin-top: 0;

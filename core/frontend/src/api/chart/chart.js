@@ -28,7 +28,7 @@ export function getChartTree(data) {
   })
 }
 
-export function chartCopy(id, panelId) {
+export async function chartCopy(id, panelId) {
   return request({
     url: '/chart/view/chartCopy/' + id + '/' + panelId,
     method: 'post',
@@ -36,7 +36,7 @@ export function chartCopy(id, panelId) {
   })
 }
 
-export function chartBatchCopy(params, panelId) {
+export async function chartBatchCopy(params, panelId) {
   return request({
     url: '/chart/view/chartBatchCopy/' + panelId,
     method: 'post',
@@ -128,6 +128,14 @@ export function resetViewCache(viewId, panelId) {
   })
 }
 
+export function resetAllViewCache(panelId) {
+  return request({
+    url: '/chart/view/resetAllViewCache/' + panelId,
+    method: 'post',
+    loading: false
+  })
+}
+
 export function checkTitle(data) {
   return request({
     url: '/chart/view/checkTitle',
@@ -153,7 +161,6 @@ export const viewOptions = panelId => {
   })
 }
 
-
 export function getDatasourceRelationship(id) {
   return request({
     url: `/api/relation/datasource/${id}`,
@@ -162,7 +169,6 @@ export function getDatasourceRelationship(id) {
   })
 }
 
-
 export function getDatasetRelationship(id) {
   return request({
     url: `/api/relation/dataset/${id}`,
@@ -170,7 +176,6 @@ export function getDatasetRelationship(id) {
     loading: true
   })
 }
-
 
 export function getPanelRelationship(id) {
   return request({

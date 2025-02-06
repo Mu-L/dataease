@@ -71,8 +71,8 @@
           </el-form>
           <div class="de-row-rules">
             <span>{{
-                positionCheck('appMarket') ? $t('app_template.datasource_info') : $t('datasource.basic_info')
-              }}</span>
+              positionCheck('appMarket') ? $t('app_template.datasource_info') : $t('datasource.basic_info')
+            }}</span>
           </div>
           <el-form
             ref="historyDsForm"
@@ -122,25 +122,25 @@
                   <span
                     v-if="
                       item.status !== 'Error' &&
-                      item.status !== 'Warning'
-                  "
+                        item.status !== 'Warning'
+                    "
                   >
-                  <svg-icon
-                    icon-class="db-de"
-                  />
-                </span>
+                    <svg-icon
+                      icon-class="db-de"
+                    />
+                  </span>
                   <span v-if="item.status === 'Error'">
-                  <svg-icon
-                    icon-class="de-ds-error"
-                    class="ds-icon-scene"
-                  />
-                </span>
+                    <svg-icon
+                      icon-class="de-ds-error"
+                      class="ds-icon-scene"
+                    />
+                  </span>
                   <span v-if="item.status === 'Warning'">
-                  <svg-icon
-                    icon-class="de-ds-warning"
-                    class="ds-icon-scene"
-                  />
-                </span>
+                    <svg-icon
+                      icon-class="de-ds-warning"
+                      class="ds-icon-scene"
+                    />
+                  </span>
                   <span>
                     {{ item.name }}
                   </span>
@@ -213,9 +213,9 @@
                 <el-option
                   v-for="item in driverList"
                   :key="item.id"
-                  :label="item.name"
+                  :label="item.nameAlias"
                   :value="item.id"
-                  :disabled="!item.driverClass"
+                  :disabled="disabledDriver(item)"
                 />
               </el-select>
             </el-form-item>
@@ -233,6 +233,44 @@
               :component-name="datasourceType.type"
               :obj="{ form, disabled }"
             />
+
+            <el-form-item
+              v-if="form.type === 'mysql' || form.type === 'mariadb'"
+              prop="enableDataFill"
+              class="data-fill-form-item"
+            >
+              <span style="display: inline-block; width: 80px; font-weight: 700; color: #606266;">{{ $t('data_fill.data_fill') }}</span>
+              <el-checkbox
+                v-model="form.enableDataFill"
+                :disabled="disableEditDataFill"
+              >
+                {{ $t('data_fill.enable') }}
+                <el-tooltip
+                  class="item"
+                  effect="dark"
+                >
+                  <div slot="content">
+                    {{ $t('data_fill.enable_hint') }}
+                  </div>
+                  <i
+                    class="el-icon-info"
+                    style="cursor: pointer;"
+                  />
+                </el-tooltip>
+              </el-checkbox>
+            </el-form-item>
+
+            <el-form-item
+              v-if="(form.type === 'mysql' || form.type === 'mariadb') && form.enableDataFill"
+              prop="enableDataFill"
+              label-position="left"
+            >
+              <span style="display: inline-block; width: 80px; font-weight: 700; color: #606266;">{{ $t('data_fill.permission') }}</span>
+              <el-checkbox
+                v-model="form.enableDataFillCreateTable"
+              >允许新建表</el-checkbox>
+            </el-form-item>
+
           </el-form>
         </div>
       </div>
@@ -273,7 +311,7 @@
               formType === 'add'
                 ? true
                 : (hasDataPermission('manage', outerParams.panelPrivileges)
-                ||hasDataPermission('manage', outerParams.datasetPrivileges))
+                  ||hasDataPermission('manage', outerParams.datasetPrivileges))
             "
             @click="validaDatasource"
           >{{ $t('commons.validate') }}
@@ -424,6 +462,7 @@ export default {
         ],
         datasourceHistoryId: [{ required: true, message: i18n.t('dataset.pls_slc_data_source'), trigger: 'blur' }]
       },
+      disableEditDataFill: false,
       form: {
         configuration: {
           initialPoolSize: 5,
@@ -694,6 +733,14 @@ export default {
     })
   },
   methods: {
+    async cancelEdit() {
+      const params = this.configFromTabs?.id ? this.configFromTabs : this.$route.query
+      const { id, showModel } = params
+      await this.getDatasourceDetail(id, showModel)
+      this.edit(this.params)
+      this.changeType(true)
+      this.editDatasource(false)
+    },
     editDatasource(type) {
       this.$emit('update:canEdit', type)
       this.disabled = !type
@@ -750,6 +797,7 @@ export default {
         if (res.data.apiConfigurationStr) {
           res.data.apiConfiguration = JSON.parse(Base64.decode(res.data.apiConfigurationStr))
         }
+        this.disableEditDataFill = res.data.enableDataFill
         this.params = { ...res.data, showModel }
         if (showModel === 'copy') {
           this.params.id = ''
@@ -840,16 +888,16 @@ export default {
     },
     saveAppMarketHistory() {
       this.$refs.historyDsForm.validate(valid => {
-          if (!valid) {
-            return false
-          }
-          const appApplyForm = {
-            ...this.attachForm,
-            ...this.historyDsForm
-          }
-          const method = this.formType === 'add' ? appApply : appEdit
-          this.appApplyMethod(method, appApplyForm)
+        if (!valid) {
+          return false
         }
+        const appApplyForm = {
+          ...this.attachForm,
+          ...this.historyDsForm
+        }
+        const method = this.formType === 'add' ? appApply : appEdit
+        this.appApplyMethod(method, appApplyForm)
+      }
       )
     },
     save() {
@@ -886,7 +934,7 @@ export default {
         this.tData.forEach((item) => {
           if (item.id === this.form.type) {
             item.children.forEach((child) => {
-              if (this.formType === 'modify' && child.id === this.form.id) {
+              if (child.id === this.form.id) {
                 return
               }
               const configuration = JSON.parse(child.configuration)
@@ -946,7 +994,7 @@ export default {
           this.tData.forEach((item) => {
             if (item.id === this.form.type) {
               item.children.forEach((child) => {
-                if (this.formType === 'modify' && child.id === this.form.id) {
+                if (child.id === this.form.id) {
                   return
                 }
                 const configuration = JSON.parse(child.configuration)
@@ -996,10 +1044,10 @@ export default {
       }
       if (this.positionCheck('appMarket')) {
         this.$refs.attachParamsForm.validate(valid => {
-            if (!valid) {
-              return false
-            }
+          if (!valid) {
+            return false
           }
+        }
         )
       }
       this.$refs.dsForm.validate((valid) => {
@@ -1114,9 +1162,12 @@ export default {
         }
       })
     },
+    disabledDriver(item) {
+      return !item.driverClass && item.id.indexOf('default') === -1
+    },
     reloadStatus(statusMap = {}) {
       this.form.apiConfiguration.forEach(ele => {
-         ele.status = statusMap[ele.name] || ele.status
+        ele.status = statusMap[ele.name] || ele.status
       })
     },
     validaDatasource() {
@@ -1151,10 +1202,10 @@ export default {
       }
       if (this.positionCheck('appMarket')) {
         this.$refs.attachParamsForm.validate(valid => {
-            if (!valid) {
-              return false
-            }
+          if (!valid) {
+            return false
           }
+        }
         )
       }
       this.$refs.dsForm.validate((valid) => {
@@ -1225,11 +1276,6 @@ export default {
           if (this.datasourceType.isJdbc) {
             listDriverByType(this.datasourceType.type).then((res) => {
               this.driverList = []
-              this.driverList.push({
-                id: 'default',
-                name: 'Default',
-                driverClass: 'Default'
-              })
               this.driverList = this.driverList.concat(res.data)
             })
           }
@@ -1358,6 +1404,9 @@ export default {
 }
 </script>
 <style lang="scss" scoped>
+.data-fill-form-item {
+  margin-bottom: 14px !important;
+}
 .de-ds-cont {
   display: flex;
   width: 100%;
@@ -1391,7 +1440,7 @@ export default {
   box-shadow: 2px 2px 4px rgba(31, 35, 41, 0.08);
 
   .name {
-    font-family: 'PingFang SC';
+    font-family: 'AlibabaPuHuiTi';
     font-style: normal;
     font-weight: 500;
     font-size: 16px;

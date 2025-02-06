@@ -1,6 +1,7 @@
 <template>
   <div
     v-loading="loadingFlag"
+    element-loading-background="rgba(0,0,0,0)"
     :class="[
       {
         ['active']: active
@@ -28,13 +29,24 @@
         {{ $t('chart.chart_error_tips') }}
       </div>
     </div>
+    <div
+      v-if="view && view.unReadyMsg"
+      class="chart-error-class"
+    >
+      <div class="chart-error-message-class">
+        {{ view.unReadyMsg }},{{ $t('chart.chart_show_error') }}
+        <br>
+        {{ $t('chart.chart_error_tips') }}
+      </div>
+    </div>
     <plugin-com
-      v-if="chart.isPlugin"
+      v-else-if="chart.isPlugin"
       :ref="element.propValue.id"
       :component-name="chart.type + '-view'"
       :obj="{active, chart, trackMenu, searchCount, terminalType: scaleCoefficientType}"
       :chart="chart"
       :track-menu="trackMenu"
+      :in-screen="inScreen"
       :search-count="searchCount"
       :terminal-type="scaleCoefficientType"
       :scale="scale"
@@ -67,6 +79,7 @@
       :scale="scale"
       :theme-style="element.commonBackground"
       :active="active"
+      :in-screen="inScreen"
       @onChartClick="chartClick"
       @onJumpClick="jumpClick"
     />
@@ -89,6 +102,7 @@
       :terminal-type="scaleCoefficientType"
       :track-menu="trackMenu"
       :search-count="searchCount"
+      :in-screen="inScreen"
       @onChartClick="chartClick"
       @onJumpClick="jumpClick"
       @onPageChange="pageClick"
@@ -96,24 +110,28 @@
     <table-normal
       v-else-if="tableShowFlag"
       :ref="element.propValue.id"
-      :show-summary="chart.type === 'table-normal'"
       :chart="chart"
+      :track-menu="trackMenu"
       class="table-class"
+      @onChartClick="chartClick"
+      @onJumpClick="jumpClick"
       @onPageChange="pageClick"
     />
     <label-normal
       v-else-if="labelShowFlag"
       :ref="element.propValue.id"
       :chart="chart"
+      :in-screen="inScreen"
       class="table-class"
     />
     <label-normal-text
       v-else-if="labelTextShowFlag"
       :ref="element.propValue.id"
       :chart="chart"
-      class="table-class"
       :track-menu="trackMenu"
       :search-count="searchCount"
+      :in-screen="inScreen"
+      class="table-class"
       @onChartClick="chartClick"
       @onJumpClick="jumpClick"
     />
@@ -132,25 +150,49 @@
       width="80%"
       class="dialog-css"
       :destroy-on-close="true"
+      append-to-body
       :show-close="true"
-      :append-to-body="true"
       top="5vh"
     >
       <span
         v-if="chartDetailsVisible"
         style="position: absolute;right: 70px;top:15px"
       >
+        <span v-if="showChartInfoType==='enlarge' && hasDataPermission('export',panelInfo.privileges)&& showChartInfo && !equalsAny(showChartInfo.type, 'symbol-map', 'flow-map')">
+          <span style="font-size: 12px">
+            {{ $t('panel.export_pixel') }}
+          </span>
+          <el-select
+            v-model="pixel"
+            style="width: 120px; margin-right: 8px; margin-top: -1px"
+            :popper-append-to-body="false"
+            size="mini"
+          >
+            <el-option-group
+              v-for="group in pixelOptions"
+              :key="group.label"
+              :label="group.label"
+            >
+              <el-option
+                v-for="item in group.options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-option-group>
+          </el-select>
+          <el-button
+            class="el-icon-picture-outline"
+            size="mini"
+            :disabled="imageDownloading"
+            @click="exportViewImg"
+          >
+            {{ $t('chart.export_img') }}
+          </el-button>
+        </span>
+
         <el-button
-          v-if="showChartInfoType==='enlarge' && hasDataPermission('export',panelInfo.privileges)&& showChartInfo && !equalsAny(showChartInfo.type, 'symbol-map', 'flow-map')"
-          class="el-icon-picture-outline"
-          size="mini"
-          :disabled="imageDownloading"
-          @click="exportViewImg"
-        >
-          {{ $t('chart.export_img') }}
-        </el-button>
-        <el-button
-          v-if="showChartInfoType==='details' && hasDataPermission('export',panelInfo.privileges)"
+          v-if="showChartInfoType==='details' && chart.dataFrom !== 'template' && hasDataPermission('export',panelInfo.privileges)"
           size="mini"
           :disabled="$store.getters.loadingMap[$store.getters.currentPath] || dialogLoading"
           @click="exportExcel"
@@ -160,6 +202,18 @@
             class="ds-icon-excel"
           />{{ $t('chart.export') }}Excel
         </el-button>
+
+        <el-button
+          v-if="showChartInfoType==='details' && chart.dataFrom !== 'template' && !userId && hasDataPermission('export',panelInfo.privileges)"
+          size="mini"
+          :disabled="$store.getters.loadingMap[$store.getters.currentPath] || dialogLoading"
+          @click="exportSourceDetails"
+        >
+          <svg-icon
+            icon-class="ds-excel"
+            class="ds-icon-excel"
+          />{{ $t('chart.export_source') }}
+        </el-button>
       </span>
       <user-view-dialog
         v-if="chartDetailsVisible"
@@ -168,6 +222,7 @@
         :chart-table="showChartTableInfo"
         :canvas-style-data="canvasStyleData"
         :open-type="showChartInfoType"
+        :user-id="userId"
       />
     </el-dialog>
 
@@ -196,6 +251,7 @@ import ChartComponent from '@/views/chart/components/ChartComponent.vue'
 import TableNormal from '@/views/chart/components/table/TableNormal'
 import LabelNormal from '../../../views/chart/components/normal/LabelNormal'
 import { uuid } from 'vue-uuid'
+import { Button } from 'element-ui'
 import bus from '@/utils/bus'
 import { mapState } from 'vuex'
 import { isChange } from '@/utils/conditionUtil'
@@ -217,7 +273,7 @@ import Vue from 'vue'
 import { formatterItem, valueFormatter } from '@/views/chart/chart/formatter'
 import UserViewDialog from '@/components/canvas/customComponent/UserViewDialog'
 import UserViewMobileDialog from '@/components/canvas/customComponent/UserViewMobileDialog'
-import { equalsAny } from '@/utils/StringUtils'
+import { equalsAny, includesAny } from '@/utils/StringUtils'
 
 export default {
   name: 'UserView',
@@ -304,10 +360,15 @@ export default {
       type: String,
       require: false,
       default: 'preview'
+    },
+    userId: {
+      type: String,
+      require: false
     }
   },
   data() {
     return {
+      unReadyList: [],
       dialogLoading: false,
       imageDownloading: false,
       innerRefreshTimer: null,
@@ -353,24 +414,61 @@ export default {
         show: 0
       },
       view: {},
-      cancelTime: null
+      cancelTime: null,
+      pixelOptions: [
+        {
+          label: 'Windows(16:9)',
+          options: [
+            {
+              value: '1920 * 1080',
+              label: '1920 * 1080'
+            },
+            {
+              value: '1600 * 900',
+              label: '1600 * 900'
+            },
+            {
+              value: '1280 * 720',
+              label: '1280 * 720'
+            }
+          ]
+        },
+        {
+          label: 'MacOS(16:10)',
+          options: [
+            {
+              value: '2560 * 1600',
+              label: '2560 * 1600'
+            },
+            {
+              value: '1920 * 1200',
+              label: '1920 * 1200'
+            },
+            {
+              value: '1680 * 1050',
+              label: '1680 * 1050'
+            }
+          ]
+        }
+      ],
+      pixel: '1280 * 720'
     }
   },
 
   computed: {
     // 首次加载且非编辑状态新复制的视图，使用外部filter
     initLoad() {
-      return !(this.isEdit && this.currentCanvasNewId.includes(this.element.id)) && this.isFirstLoad && this.canvasId === 'canvas-main'
+      return !(this.isEdit && this.currentCanvasNewId.includes(this.element.id)) && this.isFirstLoad
     },
     scaleCoefficient() {
-      if (this.terminal === 'pc' && !this.mobileLayoutStatus) {
+      if (this.terminal === 'pc' && (!this.mobileLayoutStatus || this.showPosition === 'preview-wait')) {
         return 1.1
       } else {
         return 4.5
       }
     },
     scaleCoefficientType() {
-      if (this.terminal === 'pc' && !this.mobileLayoutStatus) {
+      if (this.terminal === 'pc' && (!this.mobileLayoutStatus || this.showPosition === 'preview-wait')) {
         return 'pc'
       } else {
         return 'mobile'
@@ -408,7 +506,7 @@ export default {
     },
     filter() {
       const filter = {}
-      filter.filter = this.initLoad ? this.filters : this.cfilters
+      filter.filter = this.initLoad && this.cfilters?.length === 0 ? this.filters : this.cfilters
       filter.linkageFilters = this.element.linkageFilters
       filter.outerParamsFilters = this.element.outerParamsFilters
       filter.drill = this.drillClickDimensionList
@@ -431,8 +529,8 @@ export default {
       const trackMenuInfo = []
       let linkageCount = 0
       let jumpCount = 0
-      if(this.drillFilters.length && !this.chart.type.includes('table')){
-        const checkItem = this.drillFields[this.drillFilters.length]
+      if (this.drillFilters.length && !this.chart.type.includes('table')) {
+        const checkItem = this.getDrillField()
         const sourceInfo = this.chart.id + '#' + checkItem.id
         if (this.nowPanelTrackInfo[sourceInfo]) {
           linkageCount++
@@ -440,7 +538,7 @@ export default {
         if (this.nowPanelJumpInfo[sourceInfo]) {
           jumpCount++
         }
-      }else{
+      } else {
         this.chart.data && this.chart.data.fields && this.chart.data.fields.forEach(item => {
           const sourceInfo = this.chart.id + '#' + item.id
           if (this.nowPanelTrackInfo[sourceInfo]) {
@@ -503,6 +601,7 @@ export default {
     'cfilters': {
       handler: function(val1, val2) {
         if (isChange(val1, val2) && !this.isFirstLoad) {
+          this.currentPage.page = 1
           this.getData(this.element.propValue.viewId)
           this.getDataLoading = true
         }
@@ -528,18 +627,17 @@ export default {
     },
     // 监听外部的样式变化 （非实时性要求）
     'hw': {
-      handler(newVal, oldVla) {
-        if (newVal !== oldVla && this.$refs[this.element.propValue.id]) {
+      handler(newVal, oldVal) {
+        if (!newVal) {
+          return
+        }
+        if (this.requestStatus === 'waiting') {
+          return
+        }
+        if (newVal !== oldVal && this.$refs[this.element.propValue.id]) {
           this.resizeChart()
         }
-      },
-      deep: true
-    },
-    // 监听外部的样式变化 （非实时性要求）
-    outStyle: {
-      handler(newVal, oldVla) {
-      },
-      deep: true
+      }
     },
     // 监听外部计时器变化
     searchCount: function(val1) {
@@ -564,10 +662,14 @@ export default {
     },
     'chart.yaxis': function(newVal, oldVal) {
       this.$emit('fill-chart-2-parent', this.chart)
+    },
+    'chart.title': function(newVal, oldVal) {
+      this.$emit('fill-chart-2-parent', this.chart)
     }
   },
   mounted() {
     bus.$on('tab-canvas-change', this.tabSwitch)
+    bus.$on('resolve-wait-condition', this.resolveWaitCondition)
     this.bindPluginEvent()
   },
 
@@ -589,19 +691,62 @@ export default {
     bus.$off('onThemeAttrChange', this.optFromBatchSingleProp)
     bus.$off('clear_panel_linkage', this.clearPanelLinkage)
     bus.$off('tab-canvas-change', this.tabSwitch)
+    bus.$off('resolve-wait-condition', this.resolveWaitCondition)
   },
   created() {
     this.refId = uuid.v1
     if (this.element && this.element.propValue && this.element.propValue.viewId) {
-      // 如果watch.filters 已经进行数据初始化时候，此处放弃数据初始化
-
+      const group = this.groupFilter(this.filters)
+      this.unReadyList = group.unReady
+      const readyList = group.ready
+      if (this.unReadyList.length) {
+        Promise.all(this.unReadyList.filter(f => f instanceof Promise)).then(fList => {
+          this.filter.filter = readyList.concat(fList)
+          this.getData(this.element.propValue.viewId, false)
+        })
+        return
+      }
       this.getData(this.element.propValue.viewId, false)
     }
   },
   methods: {
+    resolveWaitCondition(p) {
+      this.unReadyList.filter(f => f instanceof Promise && f.componentId === p.componentId).map(f => {
+        f.cacheObj.cb(p)
+      })
+    },
+    groupFilter(filters) {
+      const result = {
+        ready: [],
+        unReady: []
+      }
+      filters.forEach(f => {
+        if (f instanceof Promise) {
+          result.unReady.push(f)
+        } else {
+          result.ready.push(f)
+        }
+      })
+      return result
+    },
+    groupRequiredInvalid(filters) {
+      const result = {
+        ready: [],
+        unReady: []
+      }
+      filters.forEach(f => {
+        if (f.requiredInvalid) {
+          result.unReady.push(f)
+        } else {
+          result.ready.push(f)
+        }
+      })
+      return result
+    },
     equalsAny,
     tabSwitch(tabCanvasId) {
       if (this.charViewS2ShowFlag && tabCanvasId === this.canvasId && this.$refs[this.element.propValue.id]) {
+        // do nothing
         this.$refs[this.element.propValue.id].chartResize()
       }
     },
@@ -624,15 +769,96 @@ export default {
         this.getData(this.element.propValue.viewId, false)
       }
     },
+    exportData() {
+      bus.$emit('data-export-center')
+    },
+    openMessageLoading(cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-loading`
+      const customClass = `de-message-loading de-message-export`
+      this.$message({
+        message: h('p', null, [
+          this.$t('data_export.exporting'),
+          h(
+            Button,
+            {
+              props: {
+                type: 'text'
+              },
+              class: 'btn-text',
+              on: {
+                click: () => {
+                  cb()
+                }
+              }
+            },
+            this.$t('data_export.export_center')
+          ),
+          this.$t('data_export.export_info')
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
+    openMessageSuccess(text, type, cb) {
+      const h = this.$createElement
+      const iconClass = `el-icon-${type || 'success'}`
+      const customClass = `de-message-${type || 'success'} de-message-export`
+      this.$message({
+        message: h('p', null, [
+          h('span', null, text),
+          h(
+            Button,
+            {
+              props: {
+                type: 'text'
+              },
+              class: 'btn-text',
+              on: {
+                click: () => {
+                  cb()
+                }
+              }
+            },
+            this.$t('data_export.export_center')
+          )
+        ]),
+        iconClass,
+        showClose: true,
+        customClass
+      })
+    },
     exportExcel() {
       this.dialogLoading = true
-      this.$refs['userViewDialog'].exportExcel(() => {
+      this.$refs['userViewDialog'].exportExcel((val) => {
+        if (val && val.success) {
+          this.openMessageLoading(this.exportData)
+        }
+
+        if (val && val.success === false) {
+          this.openMessageSuccess(`${this.chart.title ? this.chart.title : this.chart.name} 导出失败，前往`, 'error', this.exportData)
+        }
         this.dialogLoading = false
       })
     },
+    exportSourceDetails() {
+      this.dialogLoading = true
+      this.$refs['userViewDialog'].exportSourceDetails((val) => {
+        if (val && val.success) {
+          this.openMessageLoading(this.exportData)
+        }
+
+        if (val && val.success === false) {
+          this.openMessageSuccess(`${this.chart.title ? this.chart.title : this.chart.name} 导出失败，前往`, 'error', this.exportData)
+        }
+        this.dialogLoading = false
+      })
+    },
+
     exportViewImg() {
       this.imageDownloading = true
-      this.$refs['userViewDialog'].exportViewImg(()=>{
+      this.$refs['userViewDialog'].exportViewImg(this.pixel, () => {
         this.imageDownloading = false
       })
     },
@@ -652,7 +878,7 @@ export default {
         if (!sourceCustomAttr[param.property]) {
           this.$set(sourceCustomAttr, param.property, {})
         }
-        sourceCustomAttr[param.property][param.value.modifyName] = param.value[param.value.modifyName]
+        Vue.set(sourceCustomAttr[param.property], param.value.modifyName, param.value[param.value.modifyName])
         this.sourceCustomAttrStr = JSON.stringify(sourceCustomAttr)
         this.chart.customAttr = this.sourceCustomAttrStr
         this.$store.commit('updateComponentViewsData', {
@@ -666,7 +892,7 @@ export default {
         if (param.property === 'margin') {
           sourceCustomStyle[param.property] = param.value
         }
-        sourceCustomStyle[param.property][param.value.modifyName] = param.value[param.value.modifyName]
+        Vue.set(sourceCustomStyle[param.property], param.value.modifyName, param.value[param.value.modifyName])
         this.sourceCustomStyleStr = JSON.stringify(sourceCustomStyle)
         this.chart.customStyle = this.sourceCustomStyleStr
         this.$store.commit('updateComponentViewsData', {
@@ -722,14 +948,20 @@ export default {
     viewInCache(param) {
       this.view = param.view
       if (this.view && this.view.customAttr) {
-        this.currentPage.pageSize = parseInt(JSON.parse(this.view.customAttr).size.tablePageSize)
+        const curPageSize = this.currentPage.pageSize
+        const newPageSize = parseInt(JSON.parse(this.view.customAttr).size.tablePageSize)
+        // 分页小转大重置为第一页
+        if (curPageSize < newPageSize) {
+          this.currentPage.page = 1
+        }
+        this.currentPage.pageSize = newPageSize
       }
       param.viewId && param.viewId === this.element.propValue.viewId && this.getDataEdit(param)
     },
     clearPanelLinkage(param) {
       if (param.viewId === 'all' || param.viewId === this.element.propValue.viewId) {
         try {
-          this.$refs[this.element.propValue.id]?.reDrawView()
+          this.$refs[this.element.propValue.id]?.clearLinkage?.()
         } catch (e) {
           console.error('reDrawView-error：', this.element.propValue.id)
         }
@@ -754,8 +986,8 @@ export default {
       this.scale = Math.min(this.previewCanvasScale.scalePointWidth, this.previewCanvasScale.scalePointHeight) * this.scaleCoefficient
       const customAttrChart = JSON.parse(this.sourceCustomAttrStr)
       const customStyleChart = JSON.parse(this.sourceCustomStyleStr)
-      recursionTransObj(customAttrTrans, customAttrChart, this.scale, this.scaleCoefficientType)
-      recursionTransObj(customStyleTrans, customStyleChart, this.scale, this.scaleCoefficientType)
+      recursionTransObj(customAttrTrans, customAttrChart, this.scale, this.scaleCoefficientType, this.chart?.render)
+      recursionTransObj(customStyleTrans, customStyleChart, this.scale, this.scaleCoefficientType, this.chart?.render)
       // 移动端地图标签不显示
       if (this.chart.type === 'map' && this.scaleCoefficientType === 'mobile') {
         customAttrChart.label.show = false
@@ -767,7 +999,19 @@ export default {
       }
     },
     getData(id, cache = true, dataBroadcast = false) {
+      // Err1001 已删除的不在重复请求
+      if (this.requestStatus === 'waiting' || (this.message && this.message.indexOf('Err1001') > -1)) {
+        return
+      }
       if (id) {
+        const filters = this.filter.filter
+        const group = this.groupRequiredInvalid(filters)
+        if (group.unReady?.length) {
+          this.getDataLoading = false
+          return
+        } else {
+          this.view && (this.view.unReadyMsg = '')
+        }
         if (this.getDataLoading || Vue.prototype.$currentHttpRequestList.get(`/chart/view/getData/${id}/${this.panelInfo.id}`)) {
           const url = `/chart/view/getData/${id}/${this.panelInfo.id}`
           Vue.prototype.$cancelRequest(url)
@@ -775,9 +1019,7 @@ export default {
           this.getDataLoading = false
           this.getData(id, cache, dataBroadcast)
           clearTimeout(this.cancelTime)
-          this.cancelTime = setTimeout(() => {
-            this.requestStatus = 'waiting'
-          }, 0)
+          this.requestStatus = 'waiting'
           return
         }
         this.requestStatus = 'waiting'
@@ -789,6 +1031,7 @@ export default {
         if (!token && linkToken) {
           method = viewInfo
         }
+
         const requestInfo = {
           ...this.filter,
           cache: cache,
@@ -801,61 +1044,67 @@ export default {
         // table-info明细表增加分页
         if (this.view && this.view.customAttr) {
           const attrSize = JSON.parse(this.view.customAttr).size
-          if (this.chart.type === 'table-info' && this.view.datasetMode === 0 && (!attrSize.tablePageMode || attrSize.tablePageMode === 'page')) {
+          if (this.chart.type === 'table-info' && (!attrSize.tablePageMode || attrSize.tablePageMode === 'page')) {
             requestInfo.goPage = this.currentPage.page
             requestInfo.pageSize = this.currentPage.pageSize === parseInt(attrSize.tablePageSize) ? this.currentPage.pageSize : parseInt(attrSize.tablePageSize)
           }
         }
         if (this.isFirstLoad) {
-          this.element.filters = this.filters?.length ? JSON.parse(JSON.stringify(this.filters)) : []
+          this.element.filters = this.filter.filter?.length ? JSON.parse(JSON.stringify(this.filter.filter)) : []
+          this.$store.commit('setViewInitFilter', this.element)
         }
         method(id, this.panelInfo.id, requestInfo).then(response => {
-          // 将视图传入echart组件
-          if (response.success) {
-            this.chart = response.data
-            this.view = response.data
-            if (this.chart.type.includes('table')) {
+          try {
+            // 将视图传入echart组件
+            if (response.success) {
+              this.chart = response.data
+              this.view = response.data
               this.$store.commit('setLastViewRequestInfo', { viewId: id, requestInfo: requestInfo })
+              this.buildInnerRefreshTimer(this.chart.refreshViewEnable, this.chart.refreshUnit, this.chart.refreshTime)
+              this.$emit('fill-chart-2-parent', this.chart)
+              this.getDataOnly(response.data, dataBroadcast)
+              this.chart['position'] = this.inTab ? 'tab' : 'panel'
+              // 记录当前数据
+              this.panelViewDetailsInfo[id] = JSON.stringify(this.chart)
+              if (this.element.needAdaptor) {
+                const customStyleObj = JSON.parse(this.chart.customStyle)
+                const customAttrObj = JSON.parse(this.chart.customAttr)
+                adaptCurTheme(customStyleObj, customAttrObj)
+                this.chart.customStyle = JSON.stringify(customStyleObj)
+                this.chart.customAttr = JSON.stringify(customAttrObj)
+                viewEditSave(this.panelInfo.id, {
+                  id: this.chart.id,
+                  customStyle: this.chart.customStyle,
+                  customAttr: this.chart.customAttr
+                })
+                this.$store.commit('adaptorStatusDisable', this.element.id)
+              }
+              this.sourceCustomAttrStr = this.chart.customAttr
+              this.sourceCustomStyleStr = this.chart.customStyle
+              this.chart.drillFields = this.chart.drillFields ? JSON.parse(this.chart.drillFields) : []
+              if (!response.data.drill) {
+                this.drillClickDimensionList.splice(this.drillClickDimensionList.length - 1, 1)
+                this.resetDrill()
+              }
+              this.drillFilters = JSON.parse(JSON.stringify(response.data.drillFilters ? response.data.drillFilters : []))
+              this.drillFields = JSON.parse(JSON.stringify(response.data.drillFields))
+              this.requestStatus = 'merging'
+              this.mergeScale()
+              this.initCurFields(this.chart)
+              this.requestStatus = 'success'
+              this.httpRequest.status = true
+            } else {
+              console.error('err3-' + JSON.stringify(response))
+              this.requestStatus = 'error'
+              this.message = response.message
             }
-            this.buildInnerRefreshTimer(this.chart.refreshViewEnable, this.chart.refreshUnit, this.chart.refreshTime)
-            this.$emit('fill-chart-2-parent', this.chart)
-            this.getDataOnly(response.data, dataBroadcast)
-            this.chart['position'] = this.inTab ? 'tab' : 'panel'
-            // 记录当前数据
-            this.panelViewDetailsInfo[id] = JSON.stringify(this.chart)
-            if (this.element.needAdaptor) {
-              const customStyleObj = JSON.parse(this.chart.customStyle)
-              const customAttrObj = JSON.parse(this.chart.customAttr)
-              adaptCurTheme(customStyleObj, customAttrObj)
-              this.chart.customStyle = JSON.stringify(customStyleObj)
-              this.chart.customAttr = JSON.stringify(customAttrObj)
-              viewEditSave(this.panelInfo.id, {
-                id: this.chart.id,
-                customStyle: this.chart.customStyle,
-                customAttr: this.chart.customAttr
-              })
-              this.$store.commit('adaptorStatusDisable', this.element.id)
-            }
-            this.sourceCustomAttrStr = this.chart.customAttr
-            this.sourceCustomStyleStr = this.chart.customStyle
-            this.chart.drillFields = this.chart.drillFields ? JSON.parse(this.chart.drillFields) : []
-            if (!response.data.drill) {
-              this.drillClickDimensionList.splice(this.drillClickDimensionList.length - 1, 1)
-              this.resetDrill()
-            }
-            this.drillFilters = JSON.parse(JSON.stringify(response.data.drillFilters ? response.data.drillFilters : []))
-            this.drillFields = JSON.parse(JSON.stringify(response.data.drillFields))
-            this.requestStatus = 'merging'
-            this.mergeScale()
-            this.initCurFields(this.chart)
-            this.requestStatus = 'success'
-            this.httpRequest.status = true
-          } else {
+          } catch (e) {
             console.error('err2-' + JSON.stringify(response))
             this.requestStatus = 'error'
-            this.message = response.message
+            this.message = e.message
           }
           this.isFirstLoad = false
+
           return true
         }).catch(err => {
           console.error('err-' + err)
@@ -874,6 +1123,13 @@ export default {
                 this.message = err
               }
             }
+          }
+
+          // 还没有构内部刷新
+          if (!this.innerRefreshTimer && this.editMode === 'preview') {
+            setTimeout(() => {
+              this.getData(this.element.propValue.viewId)
+            }, 120000)
           }
           this.isFirstLoad = false
           return true
@@ -956,10 +1212,18 @@ export default {
       const tableChart = deepCopy(this.chart)
       tableChart.customAttr = JSON.parse(this.chart.customAttr)
       tableChart.customStyle = JSON.parse(this.chart.customStyle)
-      tableChart.customAttr.color.tableHeaderBgColor = '#f8f8f9'
-      tableChart.customAttr.color.tableItemBgColor = '#ffffff'
-      tableChart.customAttr.color.tableHeaderFontColor = '#7c7e81'
-      tableChart.customAttr.color.tableFontColor = '#7c7e81'
+      if (!this.chart.type?.includes('table')) {
+        tableChart.customAttr.color.tableHeaderBgColor = '#f8f8f9'
+        tableChart.customAttr.color.tableItemBgColor = '#ffffff'
+        tableChart.customAttr.color.tableHeaderFontColor = '#7c7e81'
+        tableChart.customAttr.color.tableFontColor = '#7c7e81'
+        tableChart.customAttr.color.enableTableCrossBG = false
+        tableChart.customAttr.size.showTableHeader = true
+      }
+      tableChart.customAttr.size.tableTitleFontSize = 14
+      tableChart.customAttr.size.tableItemFontSize = 14
+      tableChart.customAttr.size.tableColumnFreezeHead = 0
+      tableChart.customAttr.size.tableRowFreezeHead = 0
       tableChart.customAttr.color.tableStripe = true
       tableChart.customAttr.size.tablePageMode = 'pull'
       tableChart.customStyle.text.show = false
@@ -998,15 +1262,30 @@ export default {
     jumpClick(param) {
       let dimension, jumpInfo, sourceInfo
       // 如果有名称name 获取和name匹配的dimension 否则倒序取最后一个能匹配的
-      if (param.name) {
+      if (param.scatterSpecial) {
+        param.scatterSpecialData.dimensionList.forEach(dimensionItem => {
+          if (param.scatterSpecialData.field === dimensionItem.value) {
+            dimension = dimensionItem
+            sourceInfo = param.viewId + '#' + dimension.id
+            jumpInfo = this.nowPanelJumpInfo[sourceInfo]
+          }
+        })
+      } else if (param.name) {
         param.dimensionList.forEach(dimensionItem => {
           if (dimensionItem.id === param.name || dimensionItem.value === param.name) {
             dimension = dimensionItem
             sourceInfo = param.viewId + '#' + dimension.id
             jumpInfo = this.nowPanelJumpInfo[sourceInfo]
           }
+          // 没有主维度，子维度相等
+          if (!jumpInfo && dimensionItem.value === param.category) {
+            dimension = dimensionItem
+            sourceInfo = param.viewId + '#' + dimension.id
+            jumpInfo = this.nowPanelJumpInfo[sourceInfo]
+          }
         })
-      } else {
+      }
+      if (!jumpInfo && !this.chart.type.includes('table')) {
         for (let i = param.dimensionList.length - 1; i >= 0; i--) {
           dimension = param.dimensionList[i]
           sourceInfo = param.viewId + '#' + dimension.id
@@ -1016,6 +1295,7 @@ export default {
           }
         }
       }
+
       if (jumpInfo) {
         param.sourcePanelId = this.panelInfo.id
         param.sourceViewId = param.viewId
@@ -1027,7 +1307,7 @@ export default {
             if (this.publicLinkStatus) {
               // 判断是否有公共链接ID
               if (jumpInfo.publicJumpId) {
-                const url = '/link/' + jumpInfo.publicJumpId
+                const url = '/link/' + jumpInfo.publicJumpId + '?fromLink=true'
                 const currentUrl = window.location.href
                 localStorage.setItem('beforeJumpUrl', currentUrl)
                 this.windowsJump(url, jumpInfo.jumpType)
@@ -1056,13 +1336,11 @@ export default {
           this.windowsJump(url, jumpInfo.jumpType)
         }
       } else {
-        if (this.chart.type.indexOf('table') === -1) {
-          this.$message({
-            type: 'warn',
-            message: '未获取跳转信息',
-            showClose: true
-          })
-        }
+        this.$message({
+          type: 'warn',
+          message: '未获取跳转信息',
+          showClose: true
+        })
       }
     },
     setIdValueTrans(from, to, content, colList) {
@@ -1161,8 +1439,18 @@ export default {
       }
       const customAttr = JSON.parse(this.chart.customAttr)
       const currentNode = this.findEntityByCode(aCode || customAttr.areaCode, this.places)
+      let mappingName = null
+      if (this.chart.senior) {
+        const senior = JSON.parse(this.chart.senior)
+        if (senior?.mapMapping?.[currentNode.code]) {
+          const mapping = senior.mapMapping[currentNode.code]
+          if (mapping[name]) {
+            mappingName = mapping[name]
+          }
+        }
+      }
       if (currentNode && currentNode.children && currentNode.children.length > 0) {
-        const nextNode = currentNode.children.find(item => item.name === name)
+        const nextNode = currentNode.children.find(item => item.name === name || (mappingName && item.name === mappingName))
         this.currentAcreaNode = nextNode
         const current = this.$refs[this.element.propValue.id]
         if (this.chart.isPlugin) {
@@ -1284,27 +1572,20 @@ export default {
     },
     getDataOnly(sourceResponseData, dataBroadcast) {
       if (this.isEdit) {
-        if ((this.filter.filter && this.filter.filter.length) || (this.filter.linkageFilters && this.filter.linkageFilters.length)) {
-          const requestInfo = {
-            filter: [],
-            drill: [],
-            queryFrom: 'panel'
+        if (((this.filter.filter && this.filter.filter.length) || (this.filter.linkageFilters && this.filter.linkageFilters.length)) &&
+          this.chart.render &&
+          this.chart.render === 'antv' &&
+          (this.chart.type.includes('bar') ||
+            this.chart.type.includes('line') ||
+            this.chart.type.includes('area') ||
+            this.chart.type.includes('pie') ||
+            this.chart.type === 'funnel' ||
+            this.chart.type === 'radar' ||
+            this.chart.type === 'scatter')) {
+          delete this.componentViewsData[this.chart.id]
+          if (dataBroadcast) {
+            bus.$emit('prop-change-data')
           }
-          // table-info明细表增加分页
-          if (this.view && this.view.customAttr) {
-            const attrSize = JSON.parse(this.view.customAttr).size
-            if (this.chart.type === 'table-info' && this.view.datasetMode === 0 && (!attrSize.tablePageMode || attrSize.tablePageMode === 'page')) {
-              requestInfo.goPage = this.currentPage.page
-              requestInfo.pageSize = this.currentPage.pageSize
-            }
-          }
-          viewData(this.chart.id, this.panelInfo.id, requestInfo).then(response => {
-            this.componentViewsData[this.chart.id] = response.data
-            this.view = response.data
-            if (dataBroadcast) {
-              bus.$emit('prop-change-data')
-            }
-          })
         } else {
           this.componentViewsData[this.chart.id] = sourceResponseData
           if (dataBroadcast) {
@@ -1316,6 +1597,49 @@ export default {
     pageClick(page) {
       this.currentPage = page
       this.getData(this.element.propValue.viewId, false)
+    },
+    getDrillField() {
+      const { type, xaxis, xaxisExt, extStack } = this.chart
+      const drillItem = this.drillFields[this.drillFilters.length]
+      if (!includesAny(type, 'group', 'stack')) {
+        return drillItem
+      }
+      const drillHead = this.drillFields[0]
+      const xAxis = JSON.parse(xaxis)
+      // group
+      if (type.includes('group') && !type.includes('stack')) {
+        const xAxisExt = JSON.parse(xaxisExt)
+        if (drillHead.id === xAxisExt?.[0]?.id) {
+          return this.drillFields[this.drillFilters.length - xAxis.length]
+        }
+      }
+      // stack
+      if (!type.includes('group') && type.includes('stack')) {
+        const stack = JSON.parse(extStack)
+        if (drillHead.id === stack?.[0]?.id) {
+          return this.drillFields[this.drillFilters.length - xAxis.length]
+        }
+      }
+      // group-stack
+      if (type.includes('group') && type.includes('stack')) {
+        const xAxisExt = JSON.parse(xaxisExt)
+        const stack = JSON.parse(extStack)
+        if (drillHead.id === xAxisExt?.[0]?.id) {
+          if (stack?.length) {
+            return this.drillFields[this.drillFilters.length - xAxis.length - stack.length]
+          } else {
+            return this.drillFields[this.drillFilters.length - xAxis.length ]
+          }
+        }
+        if (drillHead.id === stack?.[0].id) {
+          if (xAxisExt?.length) {
+            return this.drillFields[this.drillFilters.length - xAxis.length - xAxisExt.length]
+          } else {
+            return this.drillFields[this.drillFilters.length - xAxis.length]
+          }
+        }
+      }
+      return drillItem
     }
   }
 }
@@ -1344,7 +1668,6 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #ece7e7;
 }
 
 .chart-error-message-class {

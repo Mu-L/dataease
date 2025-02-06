@@ -1,7 +1,8 @@
 <template>
   <div>
     <el-dropdown
-      trigger="click">
+      trigger="click"
+    >
       <input
         id="input"
         ref="trackButton"
@@ -10,7 +11,6 @@
       >
       <el-dropdown-menu
         class="track-menu"
-        :append-to-body="false"
       >
         <el-dropdown-item
           v-for="(item, key) in trackMenu"

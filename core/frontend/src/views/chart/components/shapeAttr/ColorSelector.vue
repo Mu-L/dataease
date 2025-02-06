@@ -175,6 +175,18 @@
             />
           </el-form-item>
           <el-form-item
+            v-show="showProperty('quotaSuffixColor')"
+            :label="$t('chart.quota_suffix_color')"
+            class="form-item"
+          >
+            <el-color-picker
+              v-model="colorForm.quotaSuffixColor"
+              class="color-picker-style"
+              :predefine="predefineColors"
+              @change="changeColorCase('quotaSuffixColor')"
+            />
+          </el-form-item>
+          <el-form-item
             v-show="showProperty('dimensionColor')"
             :label="$t('chart.dimension_color')"
             class="form-item"
@@ -210,6 +222,28 @@
               class="color-picker-style"
               :predefine="predefineColors"
               @change="changeColorCase('tableItemBgColor')"
+            />
+          </el-form-item>
+          <el-form-item
+            v-show="showProperty('enableTableCrossBG')"
+            :label="$t('chart.table_item_sub_enable')"
+            class="form-item"
+          >
+            <el-checkbox
+              v-model="colorForm.enableTableCrossBG"
+              @change="changeColorCase('enableTableCrossBG')"
+            />
+          </el-form-item>
+          <el-form-item
+            v-show="showProperty('tableItemSubBgColor') && colorForm.enableTableCrossBG"
+            :label="$t('chart.table_item_sub_bg')"
+            class="form-item"
+          >
+            <el-color-picker
+              v-model="colorForm.tableItemSubBgColor"
+              class="color-picker-style"
+              :predefine="predefineColors"
+              @change="changeColorCase('tableItemSubBgColor')"
             />
           </el-form-item>
           <el-form-item
@@ -294,6 +328,43 @@
           />
         </el-form-item>
         <el-form-item
+          v-show="showProperty('topN')"
+          :label="$t('chart.top_n_desc')"
+          class="form-item"
+        >
+          <el-checkbox
+            v-model="colorForm.calcTopN"
+            @change="changeColorCase('calcTopN')"
+          />
+        </el-form-item>
+        <el-form-item
+          v-show="showProperty('topN') && colorForm.calcTopN"
+          class="form-item top-n-item"
+        >
+          <span>{{ $t('chart.top_n_input_1') }}</span>
+          <el-input-number
+            v-model="colorForm.topN"
+            controls-position="right"
+            size="mini"
+            :min="1"
+            :step-strictly="true"
+            @change="changeColorCase('topN')"
+          />
+          <span>{{ $t('chart.top_n_input_2') }}</span>
+        </el-form-item>
+        <el-form-item
+          v-show="showProperty('topN') && colorForm.calcTopN"
+          class="form-item"
+          :label="$t('chart.top_n_label')"
+        >
+          <el-input
+            v-model="colorForm.topNLabel"
+            size="mini"
+            :maxlength="50"
+            @change="changeColorCase('topNLabel')"
+          />
+        </el-form-item>
+        <el-form-item
           v-show="showProperty('mapLineGradient')"
           :label="$t('chart.gradient')"
           class="form-item"
@@ -349,6 +420,7 @@ import { mapState } from 'vuex'
 import GradientColorSelector from '@/components/gradientColorSelector'
 import bus from '@/utils/bus'
 import { equalsAny } from '@/utils/StringUtils'
+import { viewData } from '@/api/panel/panel'
 
 export default {
   name: 'ColorSelector',
@@ -479,6 +551,9 @@ export default {
     }
   },
   computed: {
+    panelInfo() {
+      return this.$store.state.panel.panelInfo
+    },
     checkMapLineGradient() {
       const chart = this.chart
       if (chart.type === 'flow-map') {
@@ -567,12 +642,16 @@ export default {
           this.colorForm.tableHeaderFontColor = this.colorForm.tableHeaderFontColor ? this.colorForm.tableHeaderFontColor : this.colorForm.tableFontColor
           this.$set(this.colorForm, 'gradient', this.colorForm.gradient || false)
           this.colorForm.tableScrollBarColor = this.colorForm.tableScrollBarColor ? this.colorForm.tableScrollBarColor : DEFAULT_COLOR_CASE.tableScrollBarColor
+          this.colorForm.quotaSuffixColor = this.colorForm.quotaSuffixColor ? this.colorForm.quotaSuffixColor : DEFAULT_COLOR_CASE.quotaSuffixColor
+          this.colorForm.tableItemSubBgColor = this.colorForm.tableItemSubBgColor ? this.colorForm.tableItemSubBgColor : DEFAULT_COLOR_CASE.tableItemSubBgColor
 
           this.colorForm.mapStyle = this.colorForm.mapStyle ? this.colorForm.mapStyle : DEFAULT_COLOR_CASE.mapStyle
           this.colorForm.mapLineGradient = this.colorForm.mapLineGradient ? this.colorForm.mapLineGradient : DEFAULT_COLOR_CASE.mapLineGradient
           this.colorForm.mapLineSourceColor = this.colorForm.mapLineSourceColor ? this.colorForm.mapLineSourceColor : DEFAULT_COLOR_CASE.mapLineSourceColor
           this.colorForm.mapLineTargetColor = this.colorForm.mapLineTargetColor ? this.colorForm.mapLineTargetColor : DEFAULT_COLOR_CASE.mapLineTargetColor
-
+          this.colorForm.calcTopN = this.colorForm.calcTopN === undefined ? false : this.colorForm.calcTopN
+          this.colorForm.topN = this.colorForm.topN ?? DEFAULT_COLOR_CASE.topN
+          this.colorForm.topNLabel = this.colorForm.topNLabel ?? DEFAULT_COLOR_CASE.topNLabel
           this.initCustomColor()
         }
       }
@@ -614,6 +693,17 @@ export default {
         if (this.componentViewsData[this.chart.id]) {
           const chart = JSON.parse(JSON.stringify(this.componentViewsData[this.chart.id]))
           this.colorForm.seriesColors = getColors(chart, this.colorForm.colors, reset)
+        } else {
+          const requestInfo = {
+            filter: [],
+            drill: [],
+            queryFrom: 'panel'
+          }
+          viewData(this.chart.id, this.panelInfo.id, requestInfo).then(response => {
+            this.componentViewsData[this.chart.id] = response.data
+            const chart = JSON.parse(JSON.stringify(this.componentViewsData[this.chart.id]))
+            this.colorForm.seriesColors = getColors(chart, this.colorForm.colors, reset)
+          })
         }
       }
     }
@@ -621,7 +711,7 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .shape-item {
   padding: 6px;
   border: none;
@@ -637,6 +727,13 @@ export default {
 }
 
 .form-item ::v-deep .el-form-item__label {
+  font-size: 12px;
+}
+
+.form-item ::v-deep .el-checkbox__label {
+  font-size: 12px;
+}
+.form-item ::v-deep .el-radio__label {
   font-size: 12px;
 }
 
@@ -693,5 +790,14 @@ span {
   overflow-y: auto;
   padding: 4px 12px;
   border: 1px solid #e6e6e6;
+}
+.top-n-item {
+  ::v-deep .el-input-number {
+    width: 90px !important;
+    margin: 0 4px;
+  }
+  span {
+    font-size: 12px;
+  }
 }
 </style>

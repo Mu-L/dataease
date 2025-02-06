@@ -9,7 +9,7 @@
       class="arrow-right"
       @click="showLeft = true"
     >
-      <i class="el-icon-d-arrow-right"/>
+      <i class="el-icon-d-arrow-right" />
     </p>
     <div
       v-show="showLeft"
@@ -73,44 +73,37 @@
           v-model="checkTableList"
           size="small"
         >
-          <el-tooltip
+          <div
             v-for="t in tableData"
             :key="t.name"
-            :disabled="t.enableCheck"
-            effect="dark"
-            :content="$t('dataset.table_already_add_to') + ': ' + t.datasetPath"
-            placement="right"
+            :class="[
+              { active: activeName === t.name, 'not-allow': !t.enableCheck }
+            ]"
+            class="item"
+            :title="t.name"
+            @click="setActiveName(t)"
           >
-            <div
-              :class="[
-                { active: activeName === t.name, 'not-allow': !t.enableCheck }
-              ]"
-              class="item"
-              :title="t.name"
-              @click="setActiveName(t)"
+            <svg-icon
+              v-if="!t.enableCheck"
+              icon-class="Checkbox"
+              style="margin-right: 8px"
+            />
+            <el-checkbox
+              v-else
+              :label="t.name"
+              :disabled="!t.enableCheck"
+            />
+            <span class="label">{{ showTableNameWithComment(t) }}</span>
+            <span
+              v-if="t.nameExist"
+              class="error-name-exist"
             >
               <svg-icon
-                v-if="!t.enableCheck"
-                icon-class="Checkbox"
-                style="margin-right: 8px"
+                icon-class="exclamationmark"
+                class="ds-icon-scene"
               />
-              <el-checkbox
-                v-else
-                :label="t.name"
-                :disabled="!t.enableCheck"
-              />
-              <span class="label">{{ showTableNameWithComment(t) }}</span>
-              <span
-                v-if="t.nameExist"
-                class="error-name-exist"
-              >
-                <svg-icon
-                  icon-class="exclamationmark"
-                  class="ds-icon-scene"
-                />
-              </span>
-            </div>
-          </el-tooltip>
+            </span>
+          </div>
         </el-checkbox-group>
       </div>
     </div>
@@ -173,14 +166,37 @@
           >
             {{ $t('deDataset.already_exists') }}
           </div>
+
+          <el-checkbox
+            v-if="mode === '1'"
+            v-model="activeTable.setKey"
+          >{{ $t('dataset.set_key') }}</el-checkbox>
+
+          <el-select
+            v-if="mode === '1'"
+            v-model="activeTable.keys"
+            size="small"
+            multiple
+            filterable
+            :disabled="!activeTable.setKey"
+            :placeholder="$t('dataset.selecet_key')"
+          >
+            <el-option
+              v-for="field in fields"
+              :key="field.fieldName"
+              :label="field.fieldName"
+              :value="field.fieldName"
+            />
+          </el-select>
+
         </div>
         <div
           v-loading="tableLoading"
           class="data"
         >
           <span class="result-num">{{
-              `${$t('dataset.preview_show')} 1000 ${$t('dataset.preview_item')}`
-            }}</span>
+            `${$t('dataset.preview_show')} 1000 ${$t('dataset.preview_item')}`
+          }}</span>
           <div class="table-grid">
             <ux-grid
               ref="plxTable"
@@ -292,11 +308,16 @@ export default {
         this.activeName = ''
         this.activeTable = {}
         const dsName = this.options.find((ele) => ele.id === val).name
+        this.$currentHttpRequestList.forEach((item, key) => {
+          key.indexOf('/datasource/getTables/') > -1 && item('Operation canceled by the user.')
+        })
         post('/datasource/getTables/' + val, {}).then((response) => {
           this.tables = response.data
           this.tables.forEach((ele) => {
             this.$set(ele, 'datasetName', dsName + '_' + ele.name)
             this.$set(ele, 'nameExist', false)
+            this.$set(ele, 'setKey', false)
+            this.$set(ele, 'keys', [])
           })
           this.tableData = [...this.tables]
           this.avilibelTable = !this.tableData.some((ele) => ele.enableCheck)
@@ -340,6 +361,7 @@ export default {
     this.initDataSource()
     window.addEventListener('resize', this.calHeight)
     this.calHeight()
+    this.$emit('setSaveDisabled', false)
   },
   activated() {
     this.initDataSource()
@@ -439,27 +461,33 @@ export default {
         this.openMessageSuccess('deDataset.cannot_be_duplicate', 'error')
         return
       }
+
       if (this.loading) return
-      this.loading = true
       const sceneId = this.param.id
       const dataSourceId = this.dataSource
       const tables = []
       const mode = this.mode
       const syncType = this.syncType
-      this.checkTableList.forEach((name) => {
-        const datasetName = this.tables.find(
-          (ele) => ele.name === name
-        ).datasetName
+      for (let i = 0; i < this.checkTableList.length; i++) {
+        const table = this.tables.find(
+          (ele) => ele.name === this.checkTableList[i]
+        )
+        if (table.setKey && table.keys.length === 0) {
+          this.openMessageSuccess(this.checkTableList[i] + this.$t('dataset.no_set_key'), 'error')
+          return
+        }
         tables.push({
-          name: datasetName,
+          name: table.datasetName,
           sceneId: sceneId,
           dataSourceId: dataSourceId,
           type: 'db',
           syncType: syncType,
           mode: parseInt(mode),
-          info: JSON.stringify({ table: name })
+          info: JSON.stringify({ table: this.checkTableList[i], setKey: table.setKey, keys: table.keys })
         })
-      })
+      }
+
+      this.loading = true
       post('/dataset/table/batchAdd', tables)
         .then((response) => {
           this.openMessageSuccess('deDataset.set_saved_successfully')
@@ -516,7 +544,7 @@ export default {
     height: 100%;
     width: 240px;
     padding: 16px 12px;
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     border-right: 1px solid rgba(31, 35, 41, 0.15);
 
     .select-ds {
@@ -554,7 +582,7 @@ export default {
         align-items: center;
         box-sizing: border-box;
         padding: 12px;
-        font-family: PingFang SC;
+        font-family: AlibabaPuHuiTi;
         font-size: 14px;
         font-weight: 400;
         color: var(--deTextPrimary, #1f2329);
@@ -599,7 +627,7 @@ export default {
   }
 
   .table-detail {
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     flex: 1;
     overflow: hidden;
 
@@ -635,6 +663,15 @@ export default {
         width: 420px;
         margin-left: 12px;
       }
+
+      .el-select {
+        width: 420px;
+        margin-left: 12px;
+      }
+
+      .el-checkbox{
+        margin-left: 12px;
+      }
     }
 
     .data {
@@ -647,7 +684,7 @@ export default {
       .result-num {
         font-weight: 400;
         display: inline-block;
-        font-family: PingFang SC;
+        font-family: AlibabaPuHuiTi;
         color: var(--deTextSecondary, #646a73);
         margin-bottom: 16px;
       }

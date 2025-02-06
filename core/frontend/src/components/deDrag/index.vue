@@ -66,7 +66,7 @@
         @mousedown.stop.prevent="handleDown(handlei, $event)"
         @touchstart.stop.prevent="handleTouchDown(handlei, $event)"
       >
-        <slot :name="handlei"/>
+        <slot :name="handlei" />
       </div>
       <div
         :id="componentCanvasId"
@@ -74,22 +74,22 @@
         class="main-background"
       >
         <div
-          v-show="!this.element.editing"
+          v-show="!element.editing"
           class="de-drag-area de-drag-top"
           @mousedown="elementMouseDown"
         />
         <div
-          v-show="!this.element.editing && this.element.type !=='de-tabs'"
+          v-show="!element.editing && element.type !=='de-tabs'"
           class="de-drag-area de-drag-right"
           @mousedown="elementMouseDown"
         />
         <div
-          v-show="!this.element.editing && this.element.type !=='de-tabs'"
+          v-show="!element.editing && element.type !=='de-tabs'"
           class="de-drag-area de-drag-bottom"
           @mousedown="elementMouseDown"
         />
         <div
-          v-show="!this.element.editing && this.element.type !=='de-tabs'"
+          v-show="!element.editing && element.type !=='de-tabs'"
           class="de-drag-area de-drag-left"
           @mousedown="elementMouseDown"
         />
@@ -99,7 +99,7 @@
           class="svg-background"
           :icon-class="mainSlotSvgInner"
         />
-        <slot/>
+        <slot />
       </div>
     </div>
   </div>
@@ -116,6 +116,7 @@ import EditBar from '@/components/canvas/components/editor/EditBar'
 import MobileCheckBar from '@/components/canvas/components/editor/MobileCheckBar'
 import { hexColorToRGBA } from '@/views/chart/chart/util'
 import { imgUrlTrans } from '@/components/canvas/utils/utils'
+import bus from '@/utils/bus'
 
 let eventsFor = events.mouse
 
@@ -717,6 +718,7 @@ export default {
     active(val) {
       this.enabled = val
       if (val) {
+        bus.$emit('select-pop-change', this.element.id)
         this.$emit('activated')
       } else {
         this.$emit('deactivated')
@@ -878,12 +880,16 @@ export default {
     // 获取父元素大小
     getParentSize() {
       if (this.parent === true) {
-        const style = window.getComputedStyle(this.$el.parentNode, null)
-        const rect = this.$el.parentNode.getBoundingClientRect()
-        this.parentX = rect.x
-        this.parentY = rect.y
-        // 高度不设置上限100000 宽度增加左右 60px
-        return [Math.round(parseFloat(style.getPropertyValue('width'), 10)) + 6, 100000]
+        try {
+          const style = window.getComputedStyle(this.$el.parentNode, null)
+          const rect = this.$el.parentNode.getBoundingClientRect()
+          this.parentX = rect.x
+          this.parentY = rect.y
+          // 高度不设置上限100000 宽度增加左右 60px
+          return [Math.round(parseFloat(style.getPropertyValue('width'), 10)) + 6, 100000]
+        } catch (e) {
+          console.warn('custom:getParentSize')
+        }
       }
       if (typeof this.parent === 'string') {
         const parentNode = document.querySelector(this.parent)
@@ -1532,6 +1538,7 @@ export default {
         // Tab内部的画布ID 为 tab组件id + '-' + tabActiveName
         const targetCanvasId = this.tabMoveInActiveId + '-' + this.tabActiveTabNameMap[this.tabMoveInActiveId]
         const targetCanvasScale = this.curCanvasScaleMap[targetCanvasId]
+        const targetMainCanvasScale = this.curCanvasScaleMap['canvas-main']
         if (this.element.auxiliaryMatrix) {
           this.element.x = 1
           this.element.y = 108
@@ -1542,8 +1549,12 @@ export default {
           this.element.style.left = 0
           this.element.style.top = (this.element.y - 1) * targetCanvasScale.matrixStyleOriginHeight
         } else {
-          this.element.style.left = 0
-          this.element.style.top = 0
+          this.element.style.left = 10
+          this.element.style.top = 10
+          const newWidth = this.element.style.width * targetMainCanvasScale.scalePointWidth / targetCanvasScale.scalePointWidth
+          const checkWidth = this.canvasStyleData.width - 30
+          this.element.style.width = newWidth < checkWidth ? newWidth : checkWidth
+          this.element.style.height = this.element.style.height * targetMainCanvasScale.scalePointHeight / targetCanvasScale.scalePointHeight
         }
         this.element.canvasId = targetCanvasId
       }

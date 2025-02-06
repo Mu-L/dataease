@@ -219,13 +219,7 @@ export default {
     search() {
       const param = {}
       if (this.name) {
-        param.conditions = [
-          {
-            field: 'name',
-            operator: 'like',
-            value: this.name
-          }
-        ]
+        param.keyword = this.name
       }
       pluginLists(0, 0, param).then((response) => {
         this.data = response.data.listObject.filter(item => item.pluginId > 1)
@@ -335,7 +329,7 @@ export default {
     box-sizing: border-box;
 
     .btn-plugin {
-      font-family: "PingFang SC";
+      font-family: "AlibabaPuHuiTi";
       font-style: normal;
       font-weight: 400;
       font-size: 14px;
@@ -407,7 +401,7 @@ export default {
         width: 190px;
         height: 22px;
         float: left;
-        font-family: "PingFang SC";
+        font-family: "AlibabaPuHuiTi";
         font-style: normal;
         font-weight: 500;
         font-size: 14px;
@@ -423,7 +417,7 @@ export default {
         text-overflow: ellipsis;
         float: left;
         height: 20px;
-        font-family: "PingFang SC";
+        font-family: "AlibabaPuHuiTi";
         font-style: normal;
         font-weight: 400;
         font-size: 12px;
@@ -434,7 +428,7 @@ export default {
     }
     .list {
       padding-bottom: 8px;
-      font-family: "PingFang SC";
+      font-family: "AlibabaPuHuiTi";
       font-style: normal;
       font-weight: 400;
       font-size: 14px;

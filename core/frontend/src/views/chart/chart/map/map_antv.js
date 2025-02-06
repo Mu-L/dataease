@@ -1,8 +1,9 @@
 import { Scene, LineLayer } from '@antv/l7'
 import { GaodeMap } from '@antv/l7-maps'
 import { getLanguage } from '@/lang'
+import { queryMapKey } from '@/api/map/map'
 
-export function baseFlowMapOption(chartDom, chartId, chart, action) {
+export async function baseFlowMapOption(chartId, chart) {
   const xAxis = JSON.parse(chart.xaxis)
   const xAxisExt = JSON.parse(chart.xaxisExt)
   let customAttr
@@ -14,33 +15,23 @@ export function baseFlowMapOption(chartDom, chartId, chart, action) {
   const mapStyle = `amap://styles/${color.mapStyle ? color.mapStyle : 'normal'}`
   const lang = getLanguage().includes('zh') ? 'zh' : 'en'
   let init = false
-  if (!chartDom?.map) {
-    try {
-      chartDom.destroy()
-    } catch (e) {
-    //   ignore
-    }
-    chartDom = new Scene({
-      id: chartId,
-      map: new GaodeMap({
-        lang: lang,
-        pitch: size.mapPitch,
-        style: mapStyle
-      }),
-      logoVisible: false
-    })
-    init = true
-  } else {
-    if (chartDom.map) {
-      chartDom.setPitch(size.mapPitch)
-      chartDom.setMapStyle(mapStyle)
-    }
-  }
+  const key = await getMapKey()
+  const mapInstance = new Scene({
+    id: chartId,
+    map: new GaodeMap({
+      token: key ?? undefined,
+      lang: lang,
+      pitch: size.mapPitch,
+      style: mapStyle
+    }),
+    logoVisible: false
+  })
+  init = true
   if (xAxis?.length < 2 || xAxisExt?.length < 2) {
-    chartDom.removeAllLayer()
-    return chartDom
+    await mapInstance.removeAllLayer()
+    return mapInstance
   }
-  chartDom.removeAllLayer()
+  mapInstance.removeAllLayer()
     .then(() => {
       const lineLayer = new LineLayer({
         name: 'line',
@@ -77,11 +68,19 @@ export function baseFlowMapOption(chartDom, chartId, chart, action) {
           .color(color.mapLineSourceColor)
       }
       if (!init) {
-        chartDom.addLayer(lineLayer)
+        mapInstance.addLayer(lineLayer)
       }
-      chartDom.on('loaded', () => {
-        chartDom.addLayer(lineLayer)
+      mapInstance.on('loaded', () => {
+        mapInstance.addLayer(lineLayer)
       })
     })
-  return chartDom
+  return mapInstance
+}
+
+const getMapKey = async() => {
+  const key = 'online-map-key'
+  if (!localStorage.getItem(key)) {
+    await queryMapKey().then(res => localStorage.setItem(key, res.data))
+  }
+  return localStorage.getItem(key)
 }

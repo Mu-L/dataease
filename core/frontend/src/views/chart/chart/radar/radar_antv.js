@@ -1,8 +1,16 @@
-import { getLabel, getLegend, getPadding, getTheme, getTooltip } from '@/views/chart/chart/common/common_antv'
+import {
+  configPlotTooltipEvent,
+  getLabel,
+  getLegend,
+  getPadding,
+  getTheme,
+  getTooltip
+} from '@/views/chart/chart/common/common_antv'
 import { Radar } from '@antv/g2plot'
 import { antVCustomColor } from '@/views/chart/chart/util'
+import { minBy, maxBy } from 'lodash'
 
-export function baseRadarOptionAntV(plot, container, chart, action) {
+export function baseRadarOptionAntV(container, chart, action) {
   // theme
   const theme = getTheme(chart)
   // attr
@@ -123,6 +131,12 @@ export function baseRadarOptionAntV(plot, container, chart, action) {
           }
         }
       }
+      if (s.axisValue?.auto === false) {
+        const dataMin = minBy(data, 'value')
+        yAxis.min = yAxis.minLimit = Math.min(s.axisValue.min, dataMin.value)
+        const dataMax = maxBy(data, 'value')
+        yAxis.max = yAxis.maxLimit = Math.max(s.axisValue.max, dataMax.value)
+      }
     }
   }
   options.xAxis = xAxis
@@ -131,15 +145,12 @@ export function baseRadarOptionAntV(plot, container, chart, action) {
   // custom color
   options.color = antVCustomColor(chart)
 
-  // 开始渲染
-  if (plot) {
-    plot.destroy()
-  }
-  plot = new Radar(container, options)
+  const plot = new Radar(container, options)
 
   plot.off('point:click')
   plot.on('point:click', action)
-
+  // 处理 tooltip 被其他视图遮挡
+  configPlotTooltipEvent(chart, plot)
   return plot
 }
 

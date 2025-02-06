@@ -122,6 +122,14 @@ export function listDriverDetails(id) {
   })
 }
 
+export function getDriver(id) {
+  return request({
+    url: '/driver/getDriver/' + id,
+    method: 'get',
+    loading: true
+  })
+}
+
 export function deleteDriverFile(data) {
   return request({
     url: '/driver/deleteDriverFile',
@@ -155,4 +163,14 @@ export function getDatasourceDetail(id) {
     method: 'post'
   })
 }
-export default { getDatasourceDetail, dsGrid, addDs, editDs, delDs, validateDs, listDatasource, getSchema }
+
+export function getTableList(datasource) {
+  return request({
+    url: 'datasource/getTables/' + datasource,
+    method: 'post',
+    loading: true,
+    data: {}
+  })
+}
+
+export default { getDatasourceDetail, dsGrid, addDs, editDs, delDs, validateDs, listDatasource, getSchema, getTableList }

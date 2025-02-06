@@ -26,9 +26,23 @@
       <div
         ref="deContentContainer"
         class="condition-content"
-        :class="(element.options.attrs.showTitle && element.options.attrs.title) ? '' : 'condition-content-default'"
+        :class="{'condition-content-default' : !(element.options.attrs.showTitle && element.options.attrs.title)}"
       >
-        <div class="condition-content-container">
+
+        <div
+          v-if="element.options.attrs.required"
+          class="widget-required-symbol"
+        >
+          <span>*</span>
+        </div>
+
+        <div
+          class="condition-content-container"
+          :class="{'widget-required' : element.options.attrs.required}"
+        >
+          <!-- <div class="required-msg-container">
+            <span>必填项不能为空</span>
+          </div> -->
           <div class="first-element">
             <div
               :class="element.component === 'de-select-grid' ? 'first-element-grid-container': ''"
@@ -43,16 +57,18 @@
                 ref="deOutWidget"
                 :canvas-id="canvasId"
                 class="component-custom"
+                :terminal="terminal"
                 :out-style="element.style"
                 :is-relation="isRelation"
                 :element="element"
                 :in-draw="inDraw"
-                :in-screen="inScreen"
+                @filter-loaded="filterLoaded"
               />
             </div>
           </div>
 
         </div>
+
       </div>
     </div>
   </div>
@@ -101,6 +117,10 @@ export default {
       type: Number,
       required: false,
       default: 0
+    },
+    terminal: {
+      type: String,
+      default: 'pc'
     }
   },
   data() {
@@ -151,6 +171,7 @@ export default {
   watch: {
     'element.style': {
       handler(val) {
+        this.setPlaceholderColor()
         this.handlerPositionChange(val)
       },
       deep: true,
@@ -165,6 +186,7 @@ export default {
     }
   },
   mounted() {
+    this.setPlaceholderColor()
   },
   created() {
     const { horizontal, vertical, brColor, wordColor, innerBgColor } = this.element.style
@@ -175,6 +197,18 @@ export default {
     this.$set(this.element.style, 'innerBgColor', innerBgColor || '')
   },
   methods: {
+    setPlaceholderColor() {
+      let styleEle = document.querySelector(`#style${this.element.id}`)
+      if (!styleEle) {
+        styleEle = document.createElement('style')
+        styleEle.id = `style${this.element.id}`
+        document.querySelector('head').appendChild(styleEle)
+      }
+      styleEle.innerHTML = `#component${this.element.id}.component-custom .el-input__inner::placeholder {\n  color: ${this.element.style.wordColor}b3 \n    }`
+    },
+    filterLoaded(p) {
+      this.$emit('filter-loaded', p)
+    },
     getComponentId() {
       return this.element.id
     },
@@ -207,7 +241,6 @@ export default {
         if (!this.titleStyle) {
           this.titleStyle = {}
         }
-        this.titleStyle.marginTop = '-20px'
       }
     },
     getCondition() {
@@ -262,6 +295,17 @@ export default {
   overflow: auto hidden;
   letter-spacing: 0px !important;
   width: 100%;
+  .widget-required {
+    width: calc(100% - 12px) !important;
+    float: right !important;
+  }
+  .widget-required-symbol {
+    color: #f54a45;
+    height: 40px;
+    line-height: 40px;
+    float: left;
+    width: 12px;
+  }
 }
 
 .condition-content-container {

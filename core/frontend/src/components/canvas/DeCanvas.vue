@@ -93,7 +93,6 @@
 <script>
 import { mapState } from 'vuex'
 import DeEditor from '@/components/canvas/components/editor/DeEditor'
-import elementResizeDetectorMaker from 'element-resize-detector'
 import bus from '@/utils/bus'
 import { deepCopy, imgUrlTrans } from '@/components/canvas/utils/utils'
 import { uuid } from 'vue-uuid'
@@ -175,7 +174,9 @@ export default {
       outStyle: {
         width: null,
         height: null
-      }
+      },
+      resizeObserver: null,
+      resizerTimer: null
     }
   },
   computed: {
@@ -239,18 +240,19 @@ export default {
   created() {
   },
   mounted() {
-    const _this = this
-    // 监听div变动事件
-    const erd = elementResizeDetectorMaker()
-    erd.listenTo(document.getElementById(this.canvasDomId), element => {
-      _this.$nextTick(() => {
-        _this.restore()
-      })
+    this.restore()
+    this.resizeObserver = new ResizeObserver(() => {
+      this.resizerTimer && clearTimeout(this.resizerTimer)
+      this.resizerTimer = setTimeout(() => {
+        this.$nextTick(this.restore)
+      }, 500)
     })
+    this.resizeObserver.observe(document.getElementById(this.canvasDomId))
   },
   beforeDestroy() {
     bus.$off('component-dialog-edit', this.editDialog)
     bus.$off('button-dialog-edit', this.editButtonDialog)
+    this.resizeObserver?.disconnect()
   },
   methods: {
     getWrapperChildRefs() {
@@ -445,7 +447,7 @@ export default {
           icon: '',
           hyperlinks: HYPERLINKS,
           mobileStyle: BASE_MOBILE_STYLE,
-          propValue: imgUrlTrans(fileUrl),
+          propValue: fileUrl,
           commonBackground: deepCopy(COMMON_BACKGROUND),
           style: {
             ...PIC_STYLE
@@ -509,7 +511,8 @@ export default {
       this.$store.commit('setComponentWithId', this.currentFilterCom)
       this.$store.commit('recordSnapshot', 'sureFilter')
       this.$store.commit('setCurComponent', { component: this.currentFilterCom, index: this.curComponentIndex })
-      bus.$emit('reset-default-value', this.currentFilterCom.id)
+      this.$store.commit('delLastValidFilterWithId', this.currentFilterCom.id)
+      bus.$emit('reset-default-value', this.currentFilterCom)
       this.closeFilter()
     },
     reFreshComponent(component) {

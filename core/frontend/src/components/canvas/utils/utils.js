@@ -14,6 +14,7 @@ import xssCheck from 'xss'
 import Vue from 'vue'
 import { exportDetails, innerExportDetails } from '@/api/panel/panel'
 import { getLinkToken, getToken } from '@/utils/auth'
+import { toPngUrl } from '@/utils/CanvasUtils'
 
 export function deepCopy(target) {
   if (typeof target === 'object' && target !== null) {
@@ -85,11 +86,16 @@ export function panelInit(componentData, componentStyle) {
 }
 
 export function panelDataPrepare(componentData, componentStyle, callback) {
+  store.commit('initPanelViewDetailsInfo')
   // style初始化
+  componentStyle.autoSizeAdaptor = (componentStyle.autoSizeAdaptor === undefined ? true : componentStyle.autoSizeAdaptor)
   componentStyle.refreshTime = (componentStyle.refreshTime || 5)
   componentStyle.refreshViewLoading = (componentStyle.refreshViewLoading || false)
   componentStyle.refreshUnit = (componentStyle.refreshUnit || 'minute')
   componentStyle.refreshViewEnable = (componentStyle.refreshViewEnable === undefined ? true : componentStyle.refreshViewEnable)
+  componentStyle.refreshBrowserEnable = (componentStyle.refreshBrowserEnable || false)
+  componentStyle.showPublicLinkButton = (componentStyle.showPublicLinkButton === undefined ? true : componentStyle.showPublicLinkButton)
+  componentStyle.refreshBrowserTime = (componentStyle.refreshBrowserTime || 5)
   componentStyle.aidedDesign = (componentStyle.aidedDesign || deepCopy(AIDED_DESIGN))
   componentStyle.pdfPageLine = (componentStyle.pdfPageLine || deepCopy(PAGE_LINE_DESIGN))
   componentStyle.chartInfo = (componentStyle.chartInfo || deepCopy(PANEL_CHART_INFO))
@@ -135,6 +141,7 @@ export function panelDataPrepare(componentData, componentStyle, callback) {
     }
     if (item.type === 'custom') {
       item.options.manualModify = false
+      item.options.loaded = false
     }
     if (item.filters && item.filters.length > 0) {
       item.filters = []
@@ -173,10 +180,12 @@ export function panelDataPrepare(componentData, componentStyle, callback) {
   })
   // 初始化密度为最高密度
   componentStyle.aidedDesign.matrixBase = 4
-  callback({
+  const result = {
     'componentData': resetID(componentData),
     'componentStyle': componentStyle
-  })
+  }
+  store.state.sourceComponentData = deepCopy(result.componentData)
+  callback(result)
 }
 
 export function resetID(data) {
@@ -221,9 +230,14 @@ export function checkViewTitle(opt, id, tile) {
   }
 }
 
-export function exportImg(imgName,callback) {
+export function exportImg(imgName, callback) {
   const canvasID = document.getElementById('chartCanvas')
   const a = document.createElement('a')
+  // 保存原始的设备像素比值
+  const originalDPR = window.devicePixelRatio
+
+  // 将设备像素比设置为1
+  window.devicePixelRatio = 1
   html2canvas(canvasID).then(canvas => {
     const dom = document.body.appendChild(canvas)
     dom.style.display = 'none'
@@ -236,9 +250,34 @@ export function exportImg(imgName,callback) {
     a.click()
     URL.revokeObjectURL(blob)
     document.body.removeChild(a)
+    window.devicePixelRatio = originalDPR
     callback()
   }).catch(() => {
+    window.devicePixelRatio = originalDPR
     callback()
+  })
+}
+
+export function exportImgNew(imgName, callback) {
+  const canvasID = document.getElementById('chartCanvas')
+  // 保存原始的设备像素比值
+  const originalDPR = window.devicePixelRatio
+  // 将设备像素比设置为1
+  window.devicePixelRatio = 1
+  toPngUrl(canvasID, (pngUrl) => {
+    try {
+      const a = document.createElement('a')
+      a.setAttribute('download', imgName + '.png')
+      a.href = pngUrl
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.devicePixelRatio = originalDPR
+      callback()
+    } catch (e) {
+      window.devicePixelRatio = originalDPR
+      callback()
+    }
   })
 }
 
@@ -261,7 +300,7 @@ export function colorReverse(OldColorValue) {
 }
 
 export function imgUrlTrans(url) {
-  if (url && typeof url === 'string' && url.indexOf('static-resource') > -1) {
+  if (url && typeof url === 'string' && url.indexOf('static-resource') > -1 && url.indexOf('http') === -1 && url.indexOf('./') === -1) {
     return process.env.VUE_APP_BASE_API + url.replace('/static-resource', 'static-resource')
   } else {
     return url
@@ -350,7 +389,7 @@ export function insertTreeNode(nodeInfo, tree) {
   if (!nodeInfo) {
     return
   }
-  if (nodeInfo.pid === 0 || nodeInfo.pid === '0') {
+  if (nodeInfo.pid === 0 || nodeInfo.pid === '0' || nodeInfo.pid === 'panel_list') {
     tree.push(nodeInfo)
     return
   }
@@ -387,12 +426,12 @@ export function insertBatchTreeNode(nodeInfoArray, tree) {
 
 export function updateCacheTree(opt, treeName, nodeInfoFull, tree) {
   const nodeInfo = deepCopy(nodeInfoFull)
-  if( nodeInfo instanceof Array){
-    nodeInfo.forEach(item=>{
+  if (nodeInfo instanceof Array) {
+    nodeInfo.forEach(item => {
       delete item.panelData
       delete item.panelStyle
     })
-  }else{
+  } else {
     delete nodeInfo.panelData
     delete nodeInfo.panelStyle
   }
@@ -430,11 +469,18 @@ export function getCacheTree(treeName) {
   return JSON.parse(localStorage.getItem(treeName))
 }
 
-export function exportExcelDownload(chart, snapshot, width, height, loadingWrapper, callBack) {
-  if (chart.render === 'antv' && !chart.data?.data?.length) {
+export function exportExcelDownload(chart, snapshot, width, height, loadingWrapper, downloadParams, callBack) {
+  if (chart.type === 'race-bar' && !chart.data?.data?.length) {
+    callBack()
     return
-  }
-  if (chart.type === 'echarts' && !(chart.data?.series?.length && chart.data?.series[0].data?.length)) {
+  } else if ((chart.render === 'echarts' && chart.type !== 'race-bar' && chart.type.indexOf('table') === -1 || ['text', 'label'].includes(chart.type)) && !(chart.data?.series?.length && chart.data?.series[0].data?.length)) {
+    callBack()
+    return
+  } else if ((chart.render === 'antv' && !['text', 'label', 'flow-map'].includes(chart.type)) && !chart.data?.data?.length) {
+    callBack()
+    return
+  } else if (chart.type === 'flow-map' && !chart.data?.tableRow?.length) {
+    callBack()
     return
   }
   const fields = JSON.parse(JSON.stringify(chart.data.fields))
@@ -443,7 +489,7 @@ export function exportExcelDownload(chart, snapshot, width, height, loadingWrapp
   const excelTypes = fields.map(item => item.deType)
   const excelHeaderKeys = fields.map(item => item.dataeaseName)
   let excelData = tableRow.map(item => excelHeaderKeys.map(i => item[i]))
-  const excelName = chart.name
+  const excelName = chart.title ? chart.title : chart.name
   let detailFields = []
   if (chart.data.detailFields?.length) {
     detailFields = chart.data.detailFields.map(item => {
@@ -466,9 +512,33 @@ export function exportExcelDownload(chart, snapshot, width, height, loadingWrapp
       })
     })
   }
+  if (chart.type === 'table-normal') {
+    const initTotal = fields.map(i => [2, 3].includes(i.deType) ? 0 : undefined)
+    initTotal[0] = '合计'
+    let exportSum = true
+    if (chart.render === 'antv') {
+      const { size } = JSON.parse(chart.customAttr)
+      initTotal[0] = size.summaryLabel
+      if (size.showSummary === false) {
+        exportSum = false
+      }
+    }
+    if (exportSum) {
+      tableRow.reduce((p, n) => {
+        p.forEach((v, i) => {
+          if (!isNaN(v)) {
+            p[i] = v + n[excelHeaderKeys[i]]
+          }
+        })
+        return p
+      }, initTotal)
+      excelData.push(initTotal)
+    }
+  }
   const request = {
     proxy: null,
     viewId: chart.id,
+    downloadType: downloadParams?.downloadType ? downloadParams.downloadType : 'view',
     viewName: excelName,
     header: excelHeader,
     details: excelData,
@@ -483,7 +553,7 @@ export function exportExcelDownload(chart, snapshot, width, height, loadingWrapp
   let method = innerExportDetails
   const token = store.getters.token || getToken()
   const linkToken = store.getters.linkToken || getLinkToken()
-  if (!token && linkToken) {
+  if (linkToken && !token) {
     method = exportDetails
     loadingWrapper && (loadingWrapper.val = true)
   }
@@ -492,18 +562,20 @@ export function exportExcelDownload(chart, snapshot, width, height, loadingWrapp
     request.proxy = { userId: panelInfo.proxy }
   }
   method(request).then((res) => {
-    const blob = new Blob([res], { type: 'application/vnd.ms-excel' })
-    const link = document.createElement('a')
-    link.style.display = 'none'
-    link.href = URL.createObjectURL(blob)
-    link.download = excelName + '.xlsx' // 下载的文件名
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    if (linkToken && !token) {
+      const blob = new Blob([res], { type: 'application/vnd.ms-excel' })
+      const link = document.createElement('a')
+      link.style.display = 'none'
+      link.href = URL.createObjectURL(blob)
+      link.download = excelName + '.xlsx' // 下载的文件名
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
     loadingWrapper && (loadingWrapper.val = false)
-    callBack && callBack()
-  }).catch(() => {
+    callBack && callBack(res)
+  }).catch((error) => {
     loadingWrapper && (loadingWrapper.val = false)
-    callBack && callBack()
+    callBack && callBack(error)
   })
 }

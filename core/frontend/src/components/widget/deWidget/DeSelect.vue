@@ -2,22 +2,28 @@
   <component
     :is="mode"
     v-if="element.options!== null && element.options.attrs!==null && show "
+    :id="element.id"
     ref="deSelect"
     v-model="value"
     :class-id="'visual-' + element.id + '-' + inDraw + '-' + inScreen"
     :collapse-tags="showNumber"
-    :clearable="!element.options.attrs.multiple"
+    :clearable="(inDraw || !selectFirst)"
     :multiple="element.options.attrs.multiple"
-    :placeholder="$t(element.options.attrs.placeholder) + placeholderSuffix"
+    :placeholder="showRequiredTips ? $t('panel.required_tips') : ($t(element.options.attrs.placeholder) + placeholderSuffix)"
     :popper-append-to-body="inScreen"
     :size="size"
-    :filterable="true"
+    :filterable="inDraw || !selectFirst"
     :filter-method="filterMethod"
+    :item-disabled="!inDraw && selectFirst"
     :key-word="keyWord"
     popper-class="coustom-de-select"
-    :list="data"
-    @resetKeyWords="filterMethod"
+    :class="{'disabled-close': !inDraw && selectFirst && element.options.attrs.multiple, 'show-required-tips': showRequiredTips}"
+    :list="(element.options.attrs.showEmpty ? [{ text: '空数据', id: '_empty_$'}, ...data.filter(ele => ele.id !== '_empty_$')] : data)"
+    :flag="flag"
+    :is-config="isConfig"
     :custom-style="customStyle"
+    :radio-style="element.style"
+    @resetKeyWords="resetKeyWords"
     @change="changeValue"
     @focus="setOptionWidth"
     @blur="onBlur"
@@ -30,6 +36,7 @@
       :style="{width:selectOptionWidth}"
       :label="item[element.options.attrs.label]"
       :value="item[element.options.attrs.value]"
+      :disabled="!inDraw && selectFirst"
     >
       <span
         :title="item[element.options.attrs.label]"
@@ -42,15 +49,17 @@
 
 <script>
 import ElVisualSelect from '@/components/elVisualSelect'
+import DeRadio from './DeRadio.vue'
 import { linkMultFieldValues, multFieldValues } from '@/api/dataset/dataset'
 import bus from '@/utils/bus'
 import { isSameVueObj, mergeCustomSortOption } from '@/utils'
 import { getLinkToken, getToken } from '@/utils/auth'
 import customInput from '@/components/widget/deWidget/customInput'
 import { textSelectWidget } from '@/components/widget/deWidget/serviceNameFn.js'
-
+import { uuid } from 'vue-uuid'
+import _ from 'lodash'
 export default {
-  components: { ElVisualSelect },
+  components: { ElVisualSelect, DeRadio },
   mixins: [customInput],
   props: {
     canvasId: {
@@ -66,6 +75,10 @@ export default {
       type: Boolean,
       default: true
     },
+    isConfig: {
+      type: Boolean,
+      default: false
+    },
     inScreen: {
       type: Boolean,
       required: false,
@@ -80,18 +93,25 @@ export default {
   data() {
     return {
       showNumber: false,
+      resetKeyWordsVal: '',
       selectOptionWidth: 0,
       show: true,
       value: null,
       data: [],
       onFocus: false,
       keyWord: '',
-      separator: ','
+      separator: ',',
+      changeIndex: 0,
+      flag: uuid.v1(),
+      hasDestroy: false
     }
   },
   computed: {
     mode() {
       let result = 'el-select'
+      if (this.element.style.showMode && this.element.style.showMode === 'radio' && !this.element.options.attrs.multiple && !this.isConfig && this.element.options.attrs.required) {
+        return 'DeRadio'
+      }
       if (this.element.options && this.element.options.attrs && this.element.options.attrs.visual) {
         result = 'el-visual-select'
       }
@@ -128,18 +148,34 @@ export default {
     },
     isCustomSortWidget() {
       return this.element.serviceName === 'textSelectWidget'
+    },
+    selectFirst() {
+      return this.element.serviceName === 'textSelectWidget' && this.element.options.attrs.selectFirst
+    },
+    showRequiredTips() {
+      return this.inDraw && this.element.options.attrs.required && (!this.value || this.value.length === 0)
     }
   },
 
   watch: {
+    'value': function(val, old) {
+      if (!this.inDraw) {
+        this.$emit('widget-value-changed', val)
+      }
+    },
     'viewIds': function(value, old) {
       if (typeof value === 'undefined' || value === old) return
+      this.fillFirstValue()
       this.setCondition()
     },
     'defaultValueStr': function(value, old) {
       if (value === old) return
-      this.value = this.fillValueDerfault()
-      this.changeValue(value)
+      this.$nextTick(() => {
+        if (!this.selectFirst) {
+          this.value = this.fillValueDerfault()
+          this.changeValue(value)
+        }
+      })
     },
     'element.options.attrs.fieldId': function(value, old) {
       if (value === null || typeof value === 'undefined' || value === old) return
@@ -159,11 +195,22 @@ export default {
       this.element.options.attrs.fieldId.length > 0 &&
       method(param).then(res => {
         this.data = this.optionData(res.data)
+
         this.clearDefault(this.data)
+        this.fillFirstValue()
         bus.$emit('valid-values-change', true)
       }).catch(e => {
         bus.$emit('valid-values-change', false)
       }) || (this.element.options.value = '')
+    },
+    'selectFirst': function(value, old) {
+      if (value === old) return
+      if (value) {
+        this.fillFirstValue()
+      } else {
+        this.value = ''
+        this.firstChange(this.value)
+      }
     },
     'element.options.attrs.multiple': function(value, old) {
       if (typeof old === 'undefined' || value === old) return
@@ -174,6 +221,7 @@ export default {
 
       this.show = false
       this.$nextTick(() => {
+        this.fillFirstValue()
         this.show = true
         this.handleCoustomStyle()
       })
@@ -190,6 +238,10 @@ export default {
       if (!token && linkToken) {
         method = linkMultFieldValues
       }
+      if (!this.element.options.attrs.fieldId) {
+        this.show = true
+        return
+      }
       const param = { fieldIds: this.element.options.attrs.fieldId.split(this.separator), sort: this.element.options.attrs.sort }
       if (this.panelInfo.proxy) {
         param.userId = this.panelInfo.proxy
@@ -199,12 +251,15 @@ export default {
       method(param).then(res => {
         this.data = this.optionData(res.data)
         this.$nextTick(() => {
+          this.fillFirstValue()
           this.show = true
           this.handleCoustomStyle()
         })
         bus.$emit('valid-values-change', true)
       }).catch(e => {
         bus.$emit('valid-values-change', false)
+      }).finally(() => {
+        this.show = true
       }) || (this.element.options.value = '')
     }
 
@@ -222,15 +277,23 @@ export default {
 
   mounted() {
     bus.$on('onScroll', this.onScroll)
+    bus.$on('select-pop-change', this.popChange)
     if (this.inDraw) {
       bus.$on('reset-default-value', this.resetDefaultValue)
     }
   },
   beforeDestroy() {
+    bus.$off('select-pop-change', this.popChange)
     bus.$off('onScroll', this.onScroll)
     bus.$off('reset-default-value', this.resetDefaultValue)
+    this.hasDestroy = true
   },
   methods: {
+    popChange(id) {
+      if (id !== this.element.id) {
+        this.onScroll()
+      }
+    },
     clearDefault(optionList) {
       const emptyOption = !optionList?.length
 
@@ -256,40 +319,99 @@ export default {
       this.value = this.element.options.attrs.multiple ? [] : null
       this.$refs.deSelect && this.$refs.deSelect.resetSelectAll && this.$refs.deSelect.resetSelectAll()
     },
+
+    searchWithKey: _.debounce(function() {
+      this.refreshOptions()
+    }, 1000),
+    resetKeyWords() {
+      this.resetKeyWordsVal = this.value
+      this.keyWord = ''
+      this.searchWithKey()
+    },
     filterMethod(key) {
+      if (!key && !this.keyWord) {
+        this.keyWord = key
+        return
+      }
       this.keyWord = key
+      this.searchWithKey()
+    },
+    refreshOptions() {
+      let method = multFieldValues
+      const token = this.$store.getters.token || getToken()
+      const linkToken = this.$store.getters.linkToken || getLinkToken()
+      if (!token && linkToken) {
+        method = linkMultFieldValues
+      }
+      if (!this.element.options.attrs.fieldId) {
+        return
+      }
+      const param = { fieldIds: this.element.options.attrs.fieldId.split(this.separator), sort: this.element.options.attrs.sort, keyword: this.keyWord }
+      if (this.panelInfo.proxy) {
+        param.userId = this.panelInfo.proxy
+      }
+      this.element.options.attrs.fieldId &&
+      this.element.options.attrs.fieldId.length > 0 &&
+      method(param).then(res => {
+        this.data = this.optionData(res.data)
+        this.flag = uuid.v1()
+      })
     },
     onScroll() {
       if (this.onFocus) {
         this.$refs.deSelect.$refs.visualSelect.blur()
       }
     },
-    resetDefaultValue(id) {
+    resetDefaultValue(ele) {
+      const id = ele.id
+      const eleVal = ele.options.value.toString()
       if (this.inDraw && this.manualModify && this.element.id === id) {
-        this.value = this.fillValueDerfault()
-        this.changeValue(this.value)
+        if (ele.options.attrs.selectFirst) {
+          this.fillFirstValue(true)
+          this.firstChange(this.value)
+          return
+        }
+        if (this.value?.toString() !== eleVal && this.defaultValueStr === eleVal) {
+          this.value = this.fillValueDerfault()
+          this.changeValue(this.value)
+        }
       }
     },
     onBlur() {
       // this.onFocus = false
     },
     handleElTagStyle() {
+      if (this.isConfig) return
       setTimeout(() => {
         this.$refs['deSelect'] && this.$refs['deSelect'].$el && textSelectWidget(this.$refs['deSelect'].$el, this.element.style)
       }, 500)
     },
     initLoad() {
-      this.value = this.fillValueDerfault()
-      this.initOptions()
-      if (this.element.options.value) {
+      this.initOptions(this.fillFirstSelected)
+      const existLastValidFilters = this.$store.state.lastValidFilters && this.$store.state.lastValidFilters[this.element.id]
+      if ((this.element.options.value || existLastValidFilters) && !this.selectFirst) {
         this.value = this.fillValueDerfault()
         this.changeValue(this.value)
+      }
+    },
+    fillFirstSelected() {
+      if (this.hasDestroy) {
+        return
+      }
+      if (this.selectFirst && this.data?.length) {
+        this.fillFirstValue()
+        this.$emit('filter-loaded', {
+          componentId: this.element.id,
+          val: (this.value && Array.isArray(this.value)) ? this.value.join(',') : this.value
+        })
+        this.element.options.loaded = true
+        this.$store.commit('setComponentWithId', this.element)
       }
     },
     refreshLoad() {
       this.initOptions()
     },
-    initOptions() {
+    initOptions(cb) {
       this.data = []
       if (this.element.options.attrs.fieldId) {
         let method = multFieldValues
@@ -298,12 +420,17 @@ export default {
         if (!token && linkToken) {
           method = linkMultFieldValues
         }
-        method({
+        const param = {
           fieldIds: this.element.options.attrs.fieldId.split(this.separator),
           sort: this.element.options.attrs.sort
-        }).then(res => {
+        }
+        if (this.panelInfo.proxy) {
+          param.userId = this.panelInfo.proxy
+        }
+        method(param).then(res => {
           this.data = this.optionData(res.data)
           bus.$emit('valid-values-change', true)
+          cb && cb()
         }).catch(e => {
           bus.$emit('valid-values-change', false)
         })
@@ -328,7 +455,17 @@ export default {
         this.element.options.manualModify = false
       } else {
         this.element.options.manualModify = true
+        if (!this.showRequiredTips) {
+          this.$store.commit('setLastValidFilters', {
+            componentId: this.element.id,
+            val: (this.value && Array.isArray(this.value)) ? this.value.join(',') : this.value
+          })
+        }
       }
+      this.setCondition()
+      this.handleShowNumber()
+    },
+    firstChange(value) {
       this.setCondition()
       this.handleShowNumber()
     },
@@ -360,6 +497,9 @@ export default {
       return param
     },
     setCondition() {
+      if (this.showRequiredTips) {
+        return
+      }
       const param = this.getCondition()
       !this.isRelation && this.inDraw && this.$store.commit('addViewFilter', param)
     },
@@ -371,8 +511,41 @@ export default {
       }
       return this.value.split(',')
     },
+    fillFirstValue(isSelectFirst) {
+      if (!this.selectFirst && !isSelectFirst) {
+        return
+      }
+      let defaultV = this.data[0].id
+      if (this.inDraw) {
+        let lastFilters = null
+        if (this.$store.state.lastValidFilters) {
+          lastFilters = this.$store.state.lastValidFilters[this.element.id]
+          if (lastFilters) {
+            defaultV = lastFilters.val === null ? '' : lastFilters.val.toString()
+          }
+        }
+      }
+      if (this.element.options.attrs.multiple) {
+        if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV === '[object Object]') return []
+        this.value = defaultV.split(this.separator)
+      } else {
+        if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV === '[object Object]') return null
+        this.value = defaultV.split(this.separator)[0]
+      }
+      this.firstChange(this.value)
+    },
     fillValueDerfault() {
-      const defaultV = this.element.options.value === null ? '' : this.element.options.value.toString()
+      let defaultV = this.element.options.value === null ? '' : this.element.options.value.toString()
+      if (this.inDraw) {
+        let lastFilters = null
+        if (this.$store.state.lastValidFilters) {
+          lastFilters = this.$store.state.lastValidFilters[this.element.id]
+          if (lastFilters) {
+            defaultV = lastFilters.val === null ? '' : lastFilters.val.toString()
+          }
+        }
+      }
+
       if (this.element.options.attrs.multiple) {
         if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV === '[object Object]') return []
         return defaultV.split(this.separator)
@@ -387,12 +560,33 @@ export default {
       if (this.isCustomSortWidget && this.element.options.attrs?.sort?.sort === 'custom') {
         tempData = mergeCustomSortOption(this.element.options.attrs.sort.list, tempData)
       }
+
+      if (Array.isArray(this.resetKeyWordsVal) && this.resetKeyWordsVal.length) {
+        tempData = [...new Set([...this.resetKeyWordsVal, ...tempData])]
+      } else if (!Array.isArray(this.resetKeyWordsVal) && this.resetKeyWordsVal) {
+        tempData = [...new Set([this.resetKeyWordsVal, ...tempData])]
+      }
+      this.filterInvalidValue(tempData)
       return tempData.map(item => {
         return {
           id: item,
           text: item
         }
       })
+    },
+    filterInvalidValue(data) {
+      if (this.value === null || !!this.keyWord) {
+        return
+      }
+      if (!data.length) {
+        this.value = null
+        return
+      }
+      if (this.element.options.attrs.multiple) {
+        this.value = this.value.filter(item => data.includes(item))
+      } else {
+        this.value = data.includes(this.value) ? this.value : null
+      }
     },
     setOptionWidth(event) {
       this.onFocus = true
@@ -409,13 +603,24 @@ export default {
 }
 </script>
 
+<style lang="scss" scoped>
+  .disabled-close ::v-deep .el-icon-close {
+    display: none !important;
+  }
+  .show-required-tips ::v-deep .el-input__inner {
+    border-color: #ff0000 !important;
+  }
+  .show-required-tips ::v-deep .el-input__inner::placeholder {
+    color: #ff0000 !important;
+  }
+  .show-required-tips ::v-deep i {
+    color: #ff0000 !important;
+  }
+</style>
 <style lang="scss">
 .coustom-de-select {
   background-color: var(--BgSelectColor, #FFFFFF) !important;
   border-color: var(--BrSelectColor, #E4E7ED) !important;
-  // .popper__arrow::after{
-  //   border-bottom-color: var(--BgSelectColor, #FFFFFF) !important;
-  // }
 
   .popper__arrow,
   .popper__arrow::after {

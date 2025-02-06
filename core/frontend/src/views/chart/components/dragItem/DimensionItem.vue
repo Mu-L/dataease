@@ -90,9 +90,11 @@
                 <el-dropdown-item :command="beforeSort('asc')">{{ $t('chart.asc') }}</el-dropdown-item>
                 <el-dropdown-item :command="beforeSort('desc')">{{ $t('chart.desc') }}</el-dropdown-item>
                 <el-dropdown-item
-                  v-show="!item.chartId && (item.deType === 0 || item.deType === 5)"
+                  v-show="showCustomSort"
                   :command="beforeSort('custom_sort')"
-                >{{ $t('chart.custom_sort') }}...</el-dropdown-item>
+                >
+                  {{ $t('chart.custom_sort') }}...
+                </el-dropdown-item>
               </el-dropdown-menu>
             </el-dropdown>
           </el-dropdown-item>
@@ -130,6 +132,7 @@
                   :command="beforeDateStyle('H_m_s')"
                   divided
                 >{{ $t('chart.H_m_s') }}</el-dropdown-item>
+                <el-dropdown-item :command="beforeDateStyle('y_M_d_H')">{{ $t('chart.y_M_d_H') }}</el-dropdown-item>
                 <el-dropdown-item :command="beforeDateStyle('y_M_d_H_m')">{{ $t('chart.y_M_d_H_m') }}</el-dropdown-item>
                 <el-dropdown-item :command="beforeDateStyle('y_M_d_H_m_s')">{{ $t('chart.y_M_d_H_m_s') }}</el-dropdown-item>
               </el-dropdown-menu>
@@ -172,6 +175,25 @@
           >
             <span>{{ $t('chart.show_name_set') }}</span>
           </el-dropdown-item>
+          <div v-if="chart.type === 'table-info'">
+            <el-dropdown-item
+              v-if="item.hidden"
+              icon="el-icon-view"
+              :command="beforeClickItem('show')"
+            >
+              <span>{{ $t('chart.show') }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item
+              v-else
+              :command="beforeClickItem('hide')"
+            >
+              <svg-icon
+                style="margin-right: 5px"
+                icon-class="hide"
+              />
+              <span>{{ $t('chart.hide') }}</span>
+            </el-dropdown-item>
+          </div>
           <el-dropdown-item
             icon="el-icon-delete"
             divided
@@ -190,6 +212,7 @@ import { getItemType, getOriginFieldName } from '@/views/chart/components/dragIt
 import FieldErrorTips from '@/views/chart/components/dragItem/components/FieldErrorTips'
 import bus from '@/utils/bus'
 import { formatterItem } from '@/views/chart/chart/formatter'
+import { equalsAny } from '@/utils/StringUtils'
 
 export default {
   name: 'DimensionItem',
@@ -225,6 +248,13 @@ export default {
       tagType: 'success',
       formatterItem: formatterItem,
       showDateExt: false
+    }
+  },
+  computed: {
+    showCustomSort() {
+      return !equalsAny(this.chart.type, 'scatter') &&
+        !this.item.chartId &&
+        (this.item.deType === 0 || this.item.deType === 5)
     }
   },
   watch: {
@@ -268,6 +298,10 @@ export default {
           break
         case 'formatter':
           this.valueFormatter()
+          break
+        case 'show':
+        case 'hide':
+          this.toggleItem(param.type === 'hide')
           break
         default:
           break
@@ -339,12 +373,17 @@ export default {
       this.item.formatterType = 'dimension'
       this.$emit('valueFormatter', this.item)
     },
-
+    toggleItem(status) {
+      this.item.hidden = status
+      this.$emit('onDimensionItemChange', this.item)
+    },
     getDateExtStatus() {
       if (this.chart) {
         this.showDateExt = this.chart.datasourceType === 'mysql' ||
           this.chart.datasourceType === 'ds_doris' ||
           this.chart.datasourceType === 'StarRocks' ||
+          this.chart.datasourceType === 'ck' ||
+          this.chart.datasourceType === 'oracle' ||
           this.chart.datasetMode === 1
       } else {
         this.showDateExt = false

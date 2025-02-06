@@ -18,6 +18,7 @@ import io.dataease.i18n.Translator;
 import io.dataease.listener.util.CacheUtils;
 import io.dataease.plugins.common.base.domain.DatasetGroup;
 import io.dataease.plugins.common.base.domain.DatasetGroupExample;
+import io.dataease.plugins.common.base.domain.DatasetTable;
 import io.dataease.plugins.common.base.mapper.DatasetGroupMapper;
 import io.dataease.service.sys.SysAuthService;
 import org.apache.commons.collections4.CollectionUtils;
@@ -152,15 +153,30 @@ public class DataSetGroupService {
         if (StringUtils.isNotEmpty(datasetGroup.getId())) {
             criteria.andIdNotEqualTo(datasetGroup.getId());
         }
-        if (ObjectUtils.isNotEmpty(datasetGroup.getLevel())) {
-            criteria.andLevelEqualTo(datasetGroup.getLevel());
-        }
         List<DatasetGroup> list = datasetGroupMapper.selectByExample(datasetGroupExample);
         if (list.size() > 0) {
             throw new RuntimeException(Translator.get("I18N_DATASET_GROUP_EXIST"));
         }
     }
 
+    public String getAbsPath(String id){
+        DatasetTable datasetTable = dataSetTableService.get(id);
+        if(datasetTable == null){
+            return null;
+        }
+        if(datasetTable.getSceneId() == null){
+            return datasetTable.getName();
+        }
+        List<DatasetGroup> parents = getParents(datasetTable.getSceneId());
+        StringBuilder stringBuilder = new StringBuilder();
+        parents.forEach(ele -> {
+            if (ObjectUtils.isNotEmpty(ele)) {
+                stringBuilder.append(ele.getName()).append("/");
+            }
+        });
+        stringBuilder.append(datasetTable.getName());
+        return stringBuilder.toString();
+    }
     public List<DatasetGroup> getParents(String id) {
         List<DatasetGroup> list = new ArrayList<>();
         DatasetGroup datasetGroup = datasetGroupMapper.selectByPrimaryKey(id);

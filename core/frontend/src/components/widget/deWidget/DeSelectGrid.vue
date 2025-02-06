@@ -4,14 +4,19 @@
     v-if="element.options!== null && element.options.attrs!==null && show"
     class="de-select-grid-class"
   >
-    <div class="de-select-grid-search">
+    <div
+      class="de-select-grid-search"
+      :class="{'show-required-tips': showRequiredTips}"
+    >
       <el-input
         ref="de-select-grid"
         v-model="keyWord"
-        :placeholder="$t('deinputsearch.placeholder')"
+        :placeholder="showRequiredTips ? $t('panel.required_tips') : $t('deinputsearch.placeholder')"
         :size="size"
         prefix-icon="el-icon-search"
         clearable
+        @input="filterMethod"
+        @clear="filterMethod"
       />
     </div>
     <div class="list">
@@ -22,20 +27,22 @@
       >
         <el-checkbox
           v-model="checkAll"
+          class="is-tree-select"
           :indeterminate="isIndeterminate"
           @change="handleCheckAllChange"
-        />
-        {{ $t('commons.all') }}
-
+        >
+          {{ $t('commons.all') }}
+        </el-checkbox>
         <el-checkbox-group
           v-model="value"
           @change="handleCheckedChange"
         >
-          <template v-for="item in data.filter(node => !keyWord || (node.id && node.id.toLocaleUpperCase().includes(keyWord.toLocaleUpperCase())))">
+          <template v-for="item in dataWithEmpty">
             <el-checkbox
               :key="item.id"
+              class="is-tree-select"
               :label="item.id"
-            >{{ item.id }}
+            >{{ item.label || item.id }}
             </el-checkbox>
             <br :key="item.id">
           </template>
@@ -51,12 +58,12 @@
           @change="changeRadioBox"
         >
           <el-radio
-            v-for="(item, index) in data.filter(node => !keyWord || (node.id && node.id.toLocaleUpperCase().includes(keyWord.toLocaleUpperCase())))"
-            :key="index"
+            v-for="item in dataWithEmpty"
+            :key="item.id"
             :label="item.id"
             @click.native.prevent="testChange(item)"
           >
-            <span>{{ item.id }}</span>
+            <span>{{ item.label || item.id }}</span>
           </el-radio>
         </el-radio-group>
       </div>
@@ -118,10 +125,15 @@ export default {
       show: true,
       data: [],
       isIndeterminate: false,
-      checkAll: false
+      checkAll: false,
+      timeMachine: null,
+      changeIndex: 0
     }
   },
   computed: {
+    dataWithEmpty() {
+      return this.element.options.attrs.showEmpty ? [{ label: '空数据', id: '_empty_$' }, ...this.data] : this.data
+    },
     operator() {
       return this.element.options.attrs.multiple ? 'in' : 'eq'
     },
@@ -145,9 +157,17 @@ export default {
     },
     isCustomSortWidget() {
       return this.element.serviceName === 'textSelectGridWidget'
+    },
+    showRequiredTips() {
+      return this.inDraw && this.element.options.attrs.required && (!this.value || !this.value.length)
     }
   },
   watch: {
+    'value': function(val, old) {
+      if (!this.inDraw) {
+        this.$emit('widget-value-changed', val)
+      }
+    },
     'viewIds': function(value, old) {
       if (typeof value === 'undefined' || value === old) return
       this.setCondition()
@@ -158,8 +178,8 @@ export default {
       this.changeValue(value)
 
       if (this.element.options.attrs.multiple) {
-        this.checkAll = this.value.length === this.data.length
-        this.isIndeterminate = this.value.length > 0 && this.value.length < this.data.length
+        this.checkAll = this.value.length === this.dataWithEmpty.length
+        this.isIndeterminate = this.value.length > 0 && this.value.length < this.dataWithEmpty.length
       }
     },
     'element.options.attrs.fieldId': function(value, old) {
@@ -182,8 +202,8 @@ export default {
         this.clearDefault(this.data)
         this.changeInputStyle()
         if (this.element.options.attrs.multiple) {
-          this.checkAll = this.value.length === this.data.length
-          this.isIndeterminate = this.value.length > 0 && this.value.length < this.data.length
+          this.checkAll = this.value.length === this.dataWithEmpty.length
+          this.isIndeterminate = this.value.length > 0 && this.value.length < this.dataWithEmpty.length
         }
       }) || (this.element.options.value = '')
     },
@@ -200,8 +220,8 @@ export default {
       this.$nextTick(() => {
         this.show = true
         if (value) {
-          this.checkAll = this.value.length === this.data.length
-          this.isIndeterminate = this.value.length > 0 && this.value.length < this.data.length
+          this.checkAll = this.value.length === this.dataWithEmpty.length
+          this.isIndeterminate = this.value.length > 0 && this.value.length < this.dataWithEmpty.length
         }
         this.changeInputStyle()
       })
@@ -215,7 +235,7 @@ export default {
       if (!token && linkToken) {
         method = linkMultFieldValues
       }
-      const param = { fieldIds: this.element.options.attrs.fieldId.split(','), sort: this.element.options.attrs.sort }
+      const param = { fieldIds: this.element.options.attrs.fieldId.split(','), sort: this.element.options.attrs.sort, keyword: this.keyWord }
       if (this.panelInfo.proxy) {
         param.userId = this.panelInfo.proxy
       }
@@ -225,16 +245,15 @@ export default {
         this.data = this.optionData(res.data)
         this.changeInputStyle()
         if (this.element.options.attrs.multiple) {
-          this.checkAll = this.value.length === this.data.length
-          this.isIndeterminate = this.value.length > 0 && this.value.length < this.data.length
+          this.checkAll = this.value.length === this.dataWithEmpty.length
+          this.isIndeterminate = this.value.length > 0 && this.value.length < this.dataWithEmpty.length
         }
       }) || (this.element.options.value = '')
     },
     cssArr: {
       handler: 'changeInputStyle',
       deep: true
-    },
-    keyWord: 'changeInputStyle'
+    }
   },
   created() {
     if (!this.element.options.attrs.sort) {
@@ -251,6 +270,23 @@ export default {
     bus.$off('reset-default-value', this.resetDefaultValue)
   },
   methods: {
+    searchWithKey(index) {
+      this.timeMachine = setTimeout(() => {
+        if (index === this.changeIndex) {
+          this.initOptions()
+        }
+        this.destroyTimeMachine()
+      }, 1500)
+    },
+    destroyTimeMachine() {
+      this.timeMachine && clearTimeout(this.timeMachine)
+      this.timeMachine = null
+    },
+    filterMethod() {
+      this.destroyTimeMachine()
+      this.changeIndex++
+      this.searchWithKey(this.changeIndex)
+    },
     clearDefault(optionList) {
       const emptyOption = !optionList?.length
 
@@ -277,14 +313,16 @@ export default {
       this.checkAll = false
       this.isIndeterminate = false
     },
-    resetDefaultValue(id) {
-      if (this.inDraw && this.manualModify && this.element.id === id) {
+    resetDefaultValue(ele) {
+      const id = ele.id
+      const eleVal = ele.options.value.toString()
+      if (this.inDraw && this.manualModify && this.element.id === id && this.value.toString() !== eleVal && this.defaultValueStr === eleVal) {
         this.value = this.fillValueDerfault()
         this.changeValue(this.value)
 
         if (this.element.options.attrs.multiple) {
-          this.checkAll = this.value.length === this.data.length
-          this.isIndeterminate = this.value.length > 0 && this.value.length < this.data.length
+          this.checkAll = this.value.length === this.dataWithEmpty.length
+          this.isIndeterminate = this.value.length > 0 && this.value.length < this.dataWithEmpty.length
         }
       }
     },
@@ -309,7 +347,8 @@ export default {
     initLoad() {
       this.value = this.element.options.attrs.multiple ? [] : null
       this.initOptions()
-      if (this.element.options.value) {
+      const existLastValidFilters = this.$store.state.lastValidFilters && this.$store.state.lastValidFilters[this.element.id]
+      if (this.element.options.value || existLastValidFilters) {
         this.value = this.fillValueDerfault()
         this.changeValue(this.value)
       }
@@ -325,15 +364,19 @@ export default {
         if (!token && linkToken) {
           method = linkMultFieldValues
         }
-        method({
+        const param = {
           fieldIds: this.element.options.attrs.fieldId.split(','),
-          sort: this.element.options.attrs.sort
-        }).then(res => {
+          sort: this.element.options.attrs.sort, keyword: this.keyWord
+        }
+        if (this.panelInfo.proxy) {
+          param.userId = this.panelInfo.proxy
+        }
+        method(param).then(res => {
           this.data = this.optionData(res.data)
           this.changeInputStyle()
           if (this.element.options.attrs.multiple) {
-            this.checkAll = this.value.length === this.data.length
-            this.isIndeterminate = this.value.length > 0 && this.value.length < this.data.length
+            this.checkAll = this.value.length === this.dataWithEmpty.length
+            this.isIndeterminate = this.value.length > 0 && this.value.length < this.dataWithEmpty.length
           }
         })
       }
@@ -348,6 +391,12 @@ export default {
         this.element.options.manualModify = false
       } else {
         this.element.options.manualModify = true
+        if (!this.showRequiredTips) {
+          this.$store.commit('setLastValidFilters', {
+            componentId: this.element.id,
+            val: (this.value && Array.isArray(this.value)) ? this.value.join(',') : this.value
+          })
+        }
       }
       this.setCondition()
     },
@@ -361,6 +410,9 @@ export default {
       return param
     },
     setCondition() {
+      if (this.showRequiredTips) {
+        return
+      }
       const param = this.getCondition()
       !this.isRelation && this.inDraw && this.$store.commit('addViewFilter', param)
     },
@@ -370,7 +422,16 @@ export default {
       return this.value.split(',')
     },
     fillValueDerfault() {
-      const defaultV = this.element.options.value === null ? '' : this.element.options.value.toString()
+      let defaultV = this.element.options.value === null ? '' : this.element.options.value.toString()
+      if (this.inDraw) {
+        let lastFilters = null
+        if (this.$store.state.lastValidFilters) {
+          lastFilters = this.$store.state.lastValidFilters[this.element.id]
+          if (lastFilters) {
+            defaultV = lastFilters.val === null ? '' : lastFilters.val.toString()
+          }
+        }
+      }
       if (this.element.options.attrs.multiple) {
         if (defaultV === null || typeof defaultV === 'undefined' || defaultV === '' || defaultV === '[object Object]') {
           return []
@@ -400,14 +461,14 @@ export default {
       this.changeValue(value)
     },
     handleCheckAllChange(val) {
-      this.value = val ? this.data.map(item => item.id) : []
+      this.value = val ? this.dataWithEmpty.map(item => item.id) : []
       this.isIndeterminate = false
       this.changeValue(this.value)
     },
     handleCheckedChange(values) {
       const checkedCount = values.length
-      this.checkAll = checkedCount === this.data.length
-      this.isIndeterminate = checkedCount > 0 && checkedCount < this.data.length
+      this.checkAll = checkedCount === this.dataWithEmpty.length
+      this.isIndeterminate = checkedCount > 0 && checkedCount < this.dataWithEmpty.length
       this.changeValue(values)
     },
     testChange(item) {
@@ -421,6 +482,16 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+
+.show-required-tips ::v-deep .el-input__inner {
+  border-color: #ff0000 !important;
+}
+.show-required-tips ::v-deep .el-input__inner::placeholder {
+  color: #ff0000 !important;
+}
+.show-required-tips ::v-deep i {
+  color: #ff0000 !important;
+}
 .de-select-grid-search {
   ::v-deep input {
     border-radius: 0px;

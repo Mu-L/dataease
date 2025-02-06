@@ -198,6 +198,9 @@ export default {
         {
           label: '',
           options: [{
+            value: 'null',
+            label: this.$t('chart.filter_null')
+          }, {
             value: 'not_null',
             label: this.$t('chart.filter_not_null')
           }]
@@ -237,6 +240,9 @@ export default {
         {
           label: '',
           options: [{
+            value: 'null',
+            label: this.$t('chart.filter_null')
+          }, {
             value: 'not_null',
             label: this.$t('chart.filter_not_null')
           }]
@@ -275,6 +281,11 @@ export default {
       this.logic = this.item.logic
       this.filterType = this.item.filterType
       this.enumCheckField = this.item.enumCheckField
+
+      // init enum option
+      if (this.item.filterType === 'enum' && this.needRequestEnum) {
+        this.initEnumOptions()
+      }
     },
     initEnumOptions() {
       // 查找枚举值

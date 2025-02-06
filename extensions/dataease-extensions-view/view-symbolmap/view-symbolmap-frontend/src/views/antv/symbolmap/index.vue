@@ -29,13 +29,13 @@
 </template>
 
 <script>
-  import { Scene, PointLayer, Popup } from '@antv/l7'
-  import { uuid, hexColorToRGBA} from '@/utils/symbolmap'
-  import ViewTrackBar from '@/components/views/ViewTrackBar'
-  import { getDefaultTemplate, reverseColor } from '@/utils/map'
-  import {getRemark} from "../../../components/views/utils";
+import {PointLayer, Popup, Scene} from '@antv/l7'
+import {hexColorToRGBA, uuid} from '@/utils/symbolmap'
+import ViewTrackBar from '@/components/views/ViewTrackBar'
+import {getDefaultTemplate} from '@/utils/map'
+import {getRemark} from "../../../components/views/utils";
 
-  export default {
+export default {
     name: 'ChartComponentG2',
     components: { ViewTrackBar },
     props: {
@@ -107,7 +107,13 @@
           content: ''
         },
         buttonTextColor: null,
-        loading: true
+        loading: true,
+        CHART_CONT_FAMILY_MAP: {
+          'Microsoft YaHei': 'Microsoft YaHei',
+          'SimSun': 'SimSun, "Songti SC", STSong',
+          'SimHei': 'SimHei, Helvetica',
+          'KaiTi': 'KaiTi, "Kaiti SC", STKaiti'
+        }
       }
     },
 
@@ -175,7 +181,7 @@
         }
       }
 
-      
+
       this.myChart.destroy()
       this.pointLayer.layerPickService.layer.textureService.destroy()
       this.pointLayer.layerPickService.layer.textureService.rendererService.destroy()
@@ -200,7 +206,7 @@
       if (this.textLayer) {
         this.textLayer.configService.clean() // GlobalConfigService
       }
-      
+
       if (this.pointLayer) {
         for (const key in this.pointLayer) {
           this.pointLayer[key] = null
@@ -233,19 +239,59 @@
         window.addEventListener('resize', this.calcHeightDelay)
 
       },
-      initMap() {
+      executeAxios(url, type, data, callBack) {
+        const param = {
+          url: url,
+          type: type,
+          data: data,
+          callBack: callBack
+        }
+        this.$emit('execute-axios', param)
+        if (process.env.NODE_ENV === 'development') {
+          execute(param).then(res => {
+            if (param.callBack) {
+              param.callBack(res)
+            }
+          }).catch(e => {
+            if (param.error) {
+              param.error(e)
+            }
+          })
+        }
+      },
+      getMapKey() {
+        const key = 'online-map-key'
+        return new Promise((resolve, reject) => {
+          if (localStorage.getItem(key)) {
+            resolve(localStorage.getItem(key))
+          } else {
+            const url = "/system/onlineMapKey"
+            this.executeAxios(url, 'get', {}, res => {
+              const val = res.data
+              localStorage.setItem(key, val)
+              resolve(val)
+            })
+          }
+        })
+      },
+      async initMap() {
         if (!this.myChart) {
           let theme = this.getMapTheme(this.chart)
           const lang = this.$i18n.locale.includes('zh') ? 'zh' : 'en'
+          const mapConfig = {
+            lang: lang,
+            pitch: 0,
+            style: theme,
+            center: [121.434765, 31.256735],
+            zoom: 6
+          }
+          const key = await this.getMapKey()
+          if (key) {
+            mapConfig.token = key
+          }
           this.myChart = new Scene({
             id: this.chartId,
-            map: new this.$gaodeMap({
-              lang: lang,
-              pitch: 0,
-              style: theme,
-              center: [ 121.434765, 31.256735 ],
-              zoom: 6
-            }),
+            map: new this.$gaodeMap(mapConfig),
             logoVisible: false
           })
           const chart = JSON.parse(JSON.stringify(this.chart))
@@ -254,16 +300,13 @@
           this.antVRenderStatus = true
           if (!chart.data || !chart.data.data) {
             chart.data = {
-                data: []
+              data: []
             }
           }
           this.myChart.on('loaded', () => {
             this.addGlobalImage()
 
             this.drawView()
-            this.myChart.on('click', ev => {
-                this.$emit('trigger-edit-click', ev.originEvent)
-            })
           })
         } else {
           this.loading = false
@@ -306,24 +349,23 @@
         const defaultTemplate = "经度：${longitude}，纬度：${latitude}"
         const templateWithField = getDefaultTemplate(chart, 'labelAxis', false, false)
         const labelTemplate = customAttr.label.labelTemplate || templateWithField || defaultTemplate
+        const data = originData.filter(item => item.longitude && item.latitude)
+        data.forEach(item => {
+          const properties = item.properties || {}
+          properties.longitude = item.longitude
+          properties.latitude = item.latitude
 
-        originData.forEach(item => {
-            const properties = item.properties || {}
-            properties.longitude = item.longitude
-            properties.latitude = item.latitude
+          try {
+              item.labelResult = this.fillStrTemplate(labelTemplate, properties)
+          }catch (error) {
 
-
-            try {
-                item.labelResult = this.fillStrTemplate(labelTemplate, properties)
-            }catch (error) {
-
-            }
-            item.labelResult = item.labelResult || this.fillStrTemplate(defaultTemplate, properties)
-            item.labelResult = item.labelResult.replaceAll('\n', ' ')
+          }
+          item.labelResult = item.labelResult || this.fillStrTemplate(defaultTemplate, properties)
+          item.labelResult = item.labelResult.replaceAll('\n', ' ')
         })
 
         this.textLayer = new PointLayer({})
-            .source(originData,
+            .source(data,
             {
                 parser: {
                 type: 'json',
@@ -353,7 +395,6 @@
       },
 
       setLayerAttr (chart) {
-
         let defaultSymbol = 'marker'
         let customAttr = {}
         let layerStyle = {}
@@ -371,7 +412,8 @@
         }
 
         this.myChart.removeAllLayer().then(() => {
-          const data = chart.data && chart.data.data || []
+          let data = chart.data && chart.data.data || []
+          data = data.filter(item => item.longitude && item.latitude)
           this.pointLayer = new PointLayer({autoFit: true})
           this.pointLayer.source(data, {
             parser: {
@@ -411,7 +453,16 @@
               c.colors.forEach(ele => {
                 colors.push(hexColorToRGBA(ele, c.alpha))
               })
-              this.pointLayer.color(colors[0])
+              const colorAxis = JSON.parse(chart.xaxisExt)
+              if (colorAxis && colorAxis.length) {
+                this.pointLayer
+                  .scale('color', {
+                    type: 'cat'
+                  })
+                  .color('color', colors)
+              } else {
+                this.pointLayer.color(colors[0])
+              }
             }
             const yaxis = JSON.parse(chart.yaxis)
             const hasYaxis =  yaxis && yaxis.length
@@ -505,14 +556,17 @@
       },
 
       getMapTheme(chart) {
-        let theme = 'light'
+        let theme = 'normal'
         if (chart.customStyle) {
             const customStyle = JSON.parse(chart.customStyle)
             if (customStyle.baseMapStyle && customStyle.baseMapStyle.baseMapTheme) {
                 theme = customStyle.baseMapStyle.baseMapTheme
             }
         }
-        return theme
+        if (theme === 'light') {
+          theme = 'normal'
+        }
+        return `amap://styles/${theme}`
       },
 
 
@@ -574,7 +628,7 @@
             this.titleClass.fontStyle = customStyle.text.isItalic ? 'italic' : 'normal'
             this.titleClass.fontWeight = customStyle.text.isBolder ? 'bold' : 'normal'
 
-            this.titleClass.fontFamily = customStyle.text.fontFamily ? customStyle.text.fontFamily : 'Microsoft YaHei'
+            this.titleClass.fontFamily = customStyle.text.fontFamily ? this.CHART_CONT_FAMILY_MAP[customStyle.text.fontFamily] : 'Microsoft YaHei'
             this.titleClass.letterSpacing = (customStyle.text.letterSpace ? customStyle.text.letterSpace : '0') + 'px'
             this.titleClass.textShadow = customStyle.text.fontShadow ? '2px 2px 4px' : 'none'
           }

@@ -1,8 +1,6 @@
 package io.dataease.service.system;
 
-import cn.hutool.core.util.ArrayUtil;
 import io.dataease.commons.constants.ParamConstants;
-import io.dataease.commons.exception.DEException;
 import io.dataease.commons.utils.CommonBeanFactory;
 import io.dataease.commons.utils.EncryptUtils;
 import io.dataease.commons.utils.LogUtil;
@@ -11,7 +9,9 @@ import io.dataease.i18n.Translator;
 import io.dataease.plugins.common.base.domain.SystemParameter;
 import io.dataease.plugins.common.base.domain.SystemParameterExample;
 import io.dataease.plugins.common.base.mapper.SystemParameterMapper;
+import io.dataease.plugins.common.exception.DataEaseException;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
@@ -78,13 +78,13 @@ public class EmailService {
             driver.send(mimeMessage);
         } catch (Exception e) {
             LogUtil.error(e.getMessage(), e);
-            DEException.throwException(Translator.get("connection_failed"));
+            DataEaseException.throwException(Translator.get("connection_failed"));
         }
     }
 
 
-    public void sendPdfWithFiles(String to, String title, String content, byte[] bytes, List<File> files) {
-        if (ArrayUtil.isEmpty(bytes)) {
+    public void sendPdfWithFiles(String to, String title, String content, byte[] bytes, List<File> files, String pdfFileName) {
+        if (ArrayUtils.isEmpty(bytes)) {
             send(to, title, content);
             return;
         }
@@ -98,7 +98,7 @@ public class EmailService {
         MimeMessage mimeMessage = driver.createMimeMessage();
         try {
             multipart = addContent(multipart, content);
-            multipart = addPdf(multipart, bytes);
+            multipart = addPdf(multipart, bytes, pdfFileName);
             if (CollectionUtils.isNotEmpty(files)) {
                 multipart = addFiles(multipart, files);
             }
@@ -109,7 +109,7 @@ public class EmailService {
             driver.send(mimeMessage);
         } catch (Exception e) {
             LogUtil.error(e.getMessage(), e);
-            DEException.throwException(e);
+            DataEaseException.throwException(e);
         }
     }
 
@@ -117,7 +117,7 @@ public class EmailService {
         if (StringUtils.isBlank(to))
             return;
 
-        if (ArrayUtil.isEmpty(bytes)) {
+        if (ArrayUtils.isEmpty(bytes)) {
             send(to, title, content);
             return;
         }
@@ -139,7 +139,7 @@ public class EmailService {
             driver.send(mimeMessage);
         } catch (Exception e) {
             LogUtil.error(e.getMessage(), e);
-            DEException.throwException(e);
+            DataEaseException.throwException(e);
         }
     }
 
@@ -165,11 +165,11 @@ public class EmailService {
         return multipart;
     }
 
-    private MimeMultipart addPdf(MimeMultipart multipart, byte[] bytes) throws Exception {
+    private MimeMultipart addPdf(MimeMultipart multipart, byte[] bytes, String pdfFileName) throws Exception {
         MimeBodyPart attach = new MimeBodyPart();
         ByteArrayDataSource fileDataSource = new ByteArrayDataSource(bytes, "application/pdf");
         attach.setDataHandler(new DataHandler(fileDataSource));
-        attach.setFileName(MimeUtility.encodeText("panel.pdf", "gb2312", null));
+        attach.setFileName(MimeUtility.encodeText(pdfFileName, "gb2312", null));
         multipart.addBodyPart(attach);
         multipart.setSubType("related");
         return multipart;
@@ -277,6 +277,60 @@ public class EmailService {
         });
     }
 
+    private JavaMailSenderImpl buildSender() {
+        MailInfo mailInfo = proxy().mailInfo();
+        checkMailInfo(mailInfo);
+        JavaMailSenderImpl javaMailSender = new JavaMailSenderImpl();
+        javaMailSender.setDefaultEncoding("UTF-8");
+        javaMailSender.setHost(mailInfo.getHost());
+        javaMailSender.setPort(Integer.parseInt(mailInfo.getPort()));
+        javaMailSender.setUsername(mailInfo.getAccount());
+        javaMailSender.setPassword(mailInfo.getPassword());
+        Properties props = new Properties();
+        if (BooleanUtils.toBoolean(mailInfo.getSsl())) {
+            props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        }
+        if (BooleanUtils.toBoolean(mailInfo.getTls())) {
+            props.put("mail.smtp.starttls.enable", "true");
+        }
+        props.put("mail.smtp.timeout", "30000");
+        props.put("mail.smtp.connectiontimeout", "10000");
+        javaMailSender.setJavaMailProperties(props);
+        return javaMailSender;
+    }
+
+    private void testSendEmail(String recipients, JavaMailSenderImpl javaMailSender, boolean isAdmin) {
+        if (!StringUtils.isBlank(recipients)) {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper;
+            try {
+                helper = new MimeMessageHelper(mimeMessage, true);
+                helper.setFrom(javaMailSender.getUsername());
+                helper.setSubject("DataEase测试邮件 ");
+                helper.setText("这是一封测试邮件，邮件发送成功", true);
+                helper.setTo(recipients);
+                javaMailSender.send(mimeMessage);
+            } catch (Exception e) {
+                LogUtil.error(e.getMessage(), e);
+                String key = "connection_failed";
+                if (isAdmin) key = "connection_failed_admin";
+                DataEaseException.throwException(Translator.get(key));
+            }
+        }
+    }
+
+    public void testConnection(String email) {
+        JavaMailSenderImpl javaMailSender = null;
+        try {
+            javaMailSender = buildSender();
+            javaMailSender.testConnection();
+        } catch (MessagingException e) {
+            LogUtil.error(e.getMessage(), e);
+            DataEaseException.throwException(Translator.get("connection_failed"));
+        }
+        testSendEmail(email, javaMailSender, true);
+    }
+
     public void testConnection(HashMap<String, String> hashMap) {
         JavaMailSenderImpl javaMailSender = new JavaMailSenderImpl();
         javaMailSender.setDefaultEncoding("UTF-8");
@@ -299,23 +353,8 @@ public class EmailService {
             javaMailSender.testConnection();
         } catch (MessagingException e) {
             LogUtil.error(e.getMessage(), e);
-            DEException.throwException(Translator.get("connection_failed"));
+            DataEaseException.throwException(Translator.get("connection_failed"));
         }
-        if (!StringUtils.isBlank(recipients)) {
-            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-            MimeMessageHelper helper;
-            try {
-                helper = new MimeMessageHelper(mimeMessage, true);
-                helper.setFrom(javaMailSender.getUsername());
-                helper.setSubject("DataEase测试邮件 ");
-                helper.setText("这是一封测试邮件，邮件发送成功", true);
-                helper.setTo(recipients);
-                javaMailSender.send(mimeMessage);
-            } catch (Exception e) {
-                LogUtil.error(e.getMessage(), e);
-                DEException.throwException(Translator.get("connection_failed"));
-            }
-        }
-
+        testSendEmail(recipients, javaMailSender, false);
     }
 }

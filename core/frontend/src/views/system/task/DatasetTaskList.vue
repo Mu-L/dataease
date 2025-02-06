@@ -129,6 +129,7 @@
         @selection-change="handleSelectionChange"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
+        @sort-change="sortChange"
       >
         <el-table-column
           type="selection"
@@ -214,6 +215,7 @@
         <el-table-column
           key="nextExecTime"
           prop="nextExecTime"
+          sortable="custom"
           min-width="178"
           :label="$t('dataset.task.next_exec_time')"
         >
@@ -342,7 +344,7 @@
 
 <script>
 import { columnOptions } from './options'
-import { formatOrders } from '@/utils/index'
+import { addOrder, formatOrders } from '@/utils/index'
 import { datasetTaskList, post } from '@/api/dataset/dataset'
 import { hasDataPermission } from '@/utils/permission'
 import GridTable from '@/components/gridTable/index.vue'
@@ -350,7 +352,7 @@ import filterUser from './FilterUser.vue'
 import msgCfm from '@/components/msgCfm/index'
 import _ from 'lodash'
 import keyEnter from '@/components/msgCfm/keyEnter.js'
-
+import { buildParam } from '@/utils/GridConditionUtil'
 export default {
   name: 'DatasetTaskList',
   components: { GridTable, filterUser },
@@ -493,32 +495,30 @@ export default {
       this.paginationConfig.pageSize = pageSize
       this.search()
     },
+    sortChange({ column, prop, order }) {
+      this.orderConditions = []
+      if (!order) {
+        this.search(true)
+        return
+      }
+      addOrder({ field: prop, value: order }, this.orderConditions)
+      this.search(true)
+    },
     handleCurrentChange(currentPage) {
       this.paginationConfig.currentPage = currentPage
-      this.search()
+      this.search(true)
     },
     initSearch() {
       this.handleCurrentChange(1)
     },
     search(showLoading = true) {
       const { taskId, name } = this.transCondition
-      const param = {
-        orders: formatOrders(this.orderConditions),
-        conditions: [...this.cacheCondition]
-      }
-      if (this.nickName) {
-        param.conditions.push({
-          field: `dataset_table_task.name`,
-          operator: 'like',
-          value: this.nickName
-        })
-      }
+
+      const param = buildParam(this.cacheCondition, this.nickName)
+      param.orders = formatOrders(this.orderConditions)
+
       if (taskId && this.nickName === name) {
-        param.conditions.push({
-          operator: 'eq',
-          value: taskId,
-          field: 'dataset_table_task.id'
-        })
+        param['id'] = taskId
       }
       const { currentPage, pageSize } = this.paginationConfig
       datasetTaskList(currentPage, pageSize, param, showLoading).then(
@@ -741,7 +741,7 @@ export default {
 
   .title,
   .el-checkbox {
-    font-family: PingFang SC;
+    font-family: AlibabaPuHuiTi;
     font-size: 14px;
     font-weight: 400;
     padding: 5px 0;

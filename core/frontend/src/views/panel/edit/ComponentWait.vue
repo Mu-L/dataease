@@ -47,7 +47,7 @@ import { mapState } from 'vuex'
 import ComponentWaitItem from '@/views/panel/edit/ComponentWaitItem'
 import MobileBackgroundSelector from '@/views/panel/subjectSetting/panelStyle/MobileBackgroundSelector'
 import { imgUrlTrans } from '@/components/canvas/utils/utils'
-import {hexColorToRGBA} from "@/views/chart/chart/util";
+import { hexColorToRGBA } from '@/views/chart/chart/util'
 
 export default {
   name: 'ComponentWait',
@@ -82,7 +82,7 @@ export default {
             background: `url(${imgUrlTrans(styleInfo.imageUrl)}) no-repeat`
           }
         } else if (styleInfo.backgroundType === 'color') {
-          const colorRGBA = hexColorToRGBA(styleInfo.color, styleInfo.alpha||100)
+          const colorRGBA = hexColorToRGBA(styleInfo.color, styleInfo.alpha === undefined ? 100 : styleInfo.alpha)
           style = {
             background: colorRGBA
           }
@@ -136,6 +136,7 @@ export default {
   height: calc(100% - 40px);
   float: left;
   overflow-y: auto;
+  background-size: 100% 100% !important;
 }
 
 .component-custom {

@@ -33,7 +33,7 @@
           <el-dropdown-item v-show="chart.type ==='chart-mix'">
             <el-dropdown placement="right-start" size="mini" style="width: 100%" @command="switchChartType">
               <span class="el-dropdown-link inner-dropdown-menu">
-                <span>
+                <span class="inline-menu-text">
                   <i class="el-icon-s-data"/>
                   <span>{{ $t('chart.chart_type') }}</span>
                 </span>
@@ -49,7 +49,7 @@
           <el-dropdown-item v-show="chart.type !== 'table-info'" :divided="chart.type === 'chart-mix'">
             <el-dropdown placement="right-start" size="mini" style="width: 100%" @command="summary">
               <span class="el-dropdown-link inner-dropdown-menu">
-                <span>
+                <span class="inline-menu-text">
                   <i class="el-icon-notebook-2"/>
                   <span>{{ $t('chart.summary') }}</span>
                   <span class="summary-span-item">({{ $t('chart.' + item.summary) }})</span>
@@ -83,7 +83,7 @@
               @command="quickCalc"
             >
               <span class="el-dropdown-link inner-dropdown-menu">
-                <span>
+                <span class="inline-menu-text">
                   <i class="el-icon-s-grid"/>
                   <span>{{ $t('chart.quick_calc') }}</span>
                   <span class="summary-span-item">({{
@@ -114,7 +114,7 @@
               @command="sort"
             >
               <span class="el-dropdown-link inner-dropdown-menu">
-                <span>
+                <span class="inline-menu-text">
                   <i class="el-icon-sort"/>
                   <span>{{ $t('chart.sort') }}</span>
                   <span class="summary-span-item">({{ $t('chart.' + item.sort) }})</span>
@@ -152,9 +152,10 @@
 </template>
 
 <script>
-import {compareItem} from '@/utils/compare'
+import {compareItem} from '../../utils/compare'
 import {getItemType, getOriginFieldName, resetValueFormatter, quotaViews} from './utils'
 import FieldErrorTips from './FieldErrorTips'
+import {formatterItem} from "../../utils/map";
 
 export default {
   name: 'QuotaExtItem',
@@ -188,6 +189,7 @@ export default {
   data() {
     return {
       compareItem: compareItem,
+      formatterItem: formatterItem,
       disableEditCompare: false,
       tagType: 'success',
       quotaViews: quotaViews
@@ -215,6 +217,9 @@ export default {
     init() {
       if (!this.item.compareCalc) {
         this.item.compareCalc = JSON.parse(JSON.stringify(this.compareItem))
+      }
+      if (!this.item.formatterCfg) {
+        this.item.formatterCfg = JSON.parse(JSON.stringify(this.formatterItem))
       }
     },
     isEnableCompare() {
@@ -262,7 +267,6 @@ export default {
     },
 
     summary(param) {
-      // console.log(param)
       this.item.summary = param.type
       this.$emit('onQuotaItemChange', this.item)
     },
@@ -273,7 +277,6 @@ export default {
     },
 
     switchChartType(param) {
-      // console.log(param)
       this.item.chartType = param.type
       this.$emit('onQuotaItemChange', this.item)
     },
@@ -319,7 +322,6 @@ export default {
     },
 
     sort(param) {
-      // console.log(param)
       this.item.sort = param.type
       this.$emit('onQuotaItemChange', this.item)
     },
@@ -388,6 +390,11 @@ span {
 .summary-span-item {
   margin-left: 4px;
   color: #878d9f;
+}
+.inline-menu-text {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
 }
 
 .summary-span {

@@ -1,22 +1,17 @@
 package io.dataease.service.sys;
 
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.ZipUtil;
 import com.google.gson.Gson;
-import io.dataease.commons.utils.IPUtils;
+import io.dataease.commons.constants.AuthConstants;
+import io.dataease.commons.utils.*;
 import io.dataease.dto.MyPluginDTO;
 import io.dataease.ext.ExtSysPluginMapper;
-import io.dataease.ext.query.GridExample;
-import io.dataease.commons.constants.AuthConstants;
-import io.dataease.commons.exception.DEException;
-import io.dataease.commons.utils.CodingUtil;
-import io.dataease.commons.utils.DeFileUtils;
-import io.dataease.commons.utils.LogUtil;
-import io.dataease.controller.sys.base.BaseGridRequest;
 import io.dataease.i18n.Translator;
 import io.dataease.listener.util.CacheUtils;
 import io.dataease.plugins.common.base.domain.MyPlugin;
 import io.dataease.plugins.common.base.mapper.MyPluginMapper;
+import io.dataease.plugins.common.exception.DataEaseException;
+import io.dataease.plugins.common.request.KeywordRequest;
+import io.dataease.plugins.common.util.FileUtil;
 import io.dataease.plugins.config.LoadjarUtil;
 import io.dataease.plugins.entity.PluginOperate;
 import io.dataease.service.datasource.DatasourceService;
@@ -65,9 +60,17 @@ public class PluginService {
     private String version;
 
 
-    public List<MyPlugin> query(BaseGridRequest request) {
-        GridExample gridExample = request.convertExample();
-        return extSysPluginMapper.query(gridExample);
+    public List<MyPlugin> query(KeywordRequest request) {
+        return extSysPluginMapper.query(request);
+    }
+
+    private void checkFileName(String fileName){
+        if(StringUtils.isEmpty(fileName) || !fileName.endsWith(".zip") || fileName.contains("../")){
+            DataEaseException.throwException("非法的文件名: " + fileName);
+        }
+    }
+    public void systemUpgrade() {
+        extSysPluginMapper.updateVersion(version);
     }
 
     /**
@@ -77,18 +80,19 @@ public class PluginService {
      * @return
      */
     public Map<String, Object> localInstall(MultipartFile file) throws Exception {
+        checkFileName(file.getOriginalFilename());
         //1.上传文件到服务器pluginDir目录下
         File dest = DeFileUtils.upload(file, pluginDir + "temp/");
         //2.解压目标文件dest 得到plugin.json和jar
         String folder = pluginDir + "folder/";
         try {
-            ZipUtil.unzip(dest.getAbsolutePath(), folder);
+            ZipUtils.unZipIt(dest.getAbsolutePath(), folder);
         } catch (Exception e) {
             DeFileUtils.deleteFile(pluginDir + "temp/");
             DeFileUtils.deleteFile(folder);
             // 需要删除文件
             LogUtil.error(e.getMessage(), e);
-            DEException.throwException(e);
+            DataEaseException.throwException(e);
         }
         //3.解析plugin.json 失败则 直接返回错误 删除文件
         File folderFile = new File(folder);
@@ -98,14 +102,14 @@ public class PluginService {
             DeFileUtils.deleteFile(folder);
             String msg = "缺少插件描述文件【plugin.json】";
             LogUtil.error(msg);
-            DEException.throwException(msg);
+            DataEaseException.throwException(msg);
         }
         MyPluginDTO myPlugin = formatJsonFile(jsonFiles[0]);
 
         if (!versionMatch(myPlugin.getRequire())) {
             String msg = "当前插件要求系统版本最低为：" + myPlugin.getRequire();
             LogUtil.error(msg);
-            DEException.throwException(msg);
+            DataEaseException.throwException(msg);
         }
         //4.加载jar包 失败则 直接返回错误 删除文件
         File[] jarFiles = folderFile.listFiles(this::isPluginJar);
@@ -114,13 +118,13 @@ public class PluginService {
             DeFileUtils.deleteFile(folder);
             String msg = "缺少插件jar文件";
             LogUtil.error(msg);
-            DEException.throwException(msg);
+            DataEaseException.throwException(msg);
         }
 
         if (pluginExist(myPlugin)) {
             String msg = "插件【" + myPlugin.getName() + "】已存在，请先卸载";
             LogUtil.error(msg);
-            DEException.throwException(msg);
+            DataEaseException.throwException(msg);
         }
         String targetDir = null;
         try {
@@ -142,7 +146,7 @@ public class PluginService {
                 deleteJarFile(myPlugin);
             }
             LogUtil.error(e.getMessage(), e);
-            DEException.throwException(e);
+            DataEaseException.throwException(e);
         } finally {
             DeFileUtils.deleteFile(pluginDir + "temp/");
             DeFileUtils.deleteFile(folder);
@@ -207,11 +211,9 @@ public class PluginService {
      * @return
      */
     public boolean pluginExist(MyPlugin myPlugin) {
-        GridExample gridExample = new GridExample();
-        List<MyPlugin> plugins = extSysPluginMapper.query(gridExample);
-        return plugins.stream().anyMatch(plugin -> {
-            return StringUtils.equals(myPlugin.getName(), plugin.getName()) || StringUtils.equals(myPlugin.getModuleName(), plugin.getModuleName());
-        });
+        KeywordRequest request = new KeywordRequest();
+        List<MyPlugin> plugins = extSysPluginMapper.query(request);
+        return plugins.stream().anyMatch(plugin -> StringUtils.equals(myPlugin.getName(), plugin.getName()) || StringUtils.equals(myPlugin.getModuleName(), plugin.getModuleName()));
     }
 
     /**
@@ -221,20 +223,24 @@ public class PluginService {
      * @return
      */
     public Boolean uninstall(Long pluginId) {
+       return uninstallForUpdate(pluginId, false);
+    }
+
+    public Boolean uninstallForUpdate(Long pluginId, boolean forUpdate) {
         MyPlugin myPlugin = myPluginMapper.selectByPrimaryKey(pluginId);
         if (ObjectUtils.isEmpty(myPlugin)) {
             String msg = "当前插件不存在";
             LogUtil.error(msg);
-            DEException.throwException(msg);
+            DataEaseException.throwException(msg);
         }
         myPlugin = deleteJarFile(myPlugin);
         CacheUtils.removeAll(AuthConstants.USER_CACHE_NAME);
         CacheUtils.removeAll(AuthConstants.USER_ROLE_CACHE_NAME);
         CacheUtils.removeAll(AuthConstants.USER_PERMISSION_CACHE_NAME);
 
-        if (myPlugin.getCategory().equalsIgnoreCase("datasource")) {
+        if (myPlugin.getCategory().equalsIgnoreCase("datasource") && !forUpdate) {
             if (CollectionUtils.isNotEmpty(datasourceService.selectByType(myPlugin.getDsType()))) {
-                DEException.throwException(Translator.get("i18n_plugin_not_allow_delete"));
+                DataEaseException.throwException(Translator.get("i18n_plugin_not_allow_delete"));
             }
             loadjarUtil.deleteModule(myPlugin.getModuleName() + "-" + myPlugin.getVersion());
         }
@@ -250,7 +256,7 @@ public class PluginService {
 
         if (myPlugin.getCategory().equalsIgnoreCase("datasource")) {
             if (CollectionUtils.isNotEmpty(datasourceService.selectByType(myPlugin.getDsType()))) {
-                DEException.throwException(Translator.get("i18n_plugin_not_allow_delete"));
+                DataEaseException.throwException(Translator.get("i18n_plugin_not_allow_delete"));
             }
             loadjarUtil.deleteModule(myPlugin.getModuleName() + "-" + myPlugin.getVersion());
         }
